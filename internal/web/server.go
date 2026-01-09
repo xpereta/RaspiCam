@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -24,6 +25,8 @@ type Server struct {
 
 type StatusView struct {
 	GeneratedAt string
+	Hostname    string
+	IPAddress   string
 	Metrics     MetricsView
 	MediaMTX    MediaMTXView
 	Warnings    []string
@@ -78,6 +81,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
 	view := StatusView{
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
+		Hostname:    hostnameOrUnknown(),
+		IPAddress:   primaryIPv4OrUnknown(),
 		Metrics:     formatMetrics(snap),
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Warnings:    append(warnings, mtxWarnings...),
@@ -181,4 +186,34 @@ func getEnvDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func hostnameOrUnknown() string {
+	name, err := os.Hostname()
+	if err != nil || name == "" {
+		return "unknown"
+	}
+	return name
+}
+
+func primaryIPv4OrUnknown() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "unavailable"
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP == nil {
+			continue
+		}
+		ip := ipNet.IP.To4()
+		if ip == nil {
+			continue
+		}
+		if ip.IsLoopback() {
+			continue
+		}
+		return ip.String()
+	}
+	return "unavailable"
 }
