@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"strings"
 	"time"
@@ -94,7 +95,8 @@ type PathStatus struct {
 
 func GetPathStatus(ctx context.Context, baseURL, pathName string) (PathStatus, error) {
 	client := &http.Client{Timeout: 2 * time.Second}
-	url := strings.TrimRight(baseURL, "/") + "/v3/paths/get/" + pathName
+	escapedPathName := url.PathEscape(pathName)
+	url := strings.TrimRight(baseURL, "/") + "/v3/paths/get/" + escapedPathName
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
