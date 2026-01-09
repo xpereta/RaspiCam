@@ -11,29 +11,41 @@ import (
 var cameraCodes = []string{"imx708", "imx477", "imx219", "ov5647"}
 
 func cameraModel() string {
-	code := findCameraCode("/proc/device-tree")
+	code := findCameraCode([]string{
+		"/sys/firmware/devicetree/base",
+		"/proc/device-tree",
+	})
 	if code == "" {
 		return "Unknown camera"
 	}
 	return mapCameraModel(code)
 }
 
-func findCameraCode(root string) string {
+func findCameraCode(roots []string) string {
 	code := ""
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		data, err := readFilePrefix(path, 8192)
+	for _, root := range roots {
+		resolved, err := filepath.EvalSymlinks(root)
 		if err != nil {
+			continue
+		}
+		_ = filepath.WalkDir(resolved, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			data, err := readFilePrefix(path, 8192)
+			if err != nil {
+				return nil
+			}
+			if found := extractCameraCode(data); found != "" {
+				code = found
+				return io.EOF
+			}
 			return nil
+		})
+		if code != "" {
+			break
 		}
-		if found := extractCameraCode(data); found != "" {
-			code = found
-			return io.EOF
-		}
-		return nil
-	})
+	}
 	return code
 }
 
