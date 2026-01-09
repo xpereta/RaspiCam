@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/xpereta/RaspiCam/internal/config"
@@ -25,7 +24,6 @@ type Server struct {
 	mediamtxURL  string
 	mediamtxPath string
 	configPath   string
-	statePath    string
 }
 
 type StatusView struct {
@@ -81,7 +79,6 @@ func NewServer() (*Server, error) {
 		mediamtxURL:  getEnvDefault("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
 		mediamtxPath: getEnvDefault("MEDIAMTX_PATH_NAME", "cam"),
 		configPath:   getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
-		statePath:    filepath.Join(getEnvDefault("UI_STATE_DIR", "/var/local/raspicam-ui"), "camera_last_update"),
 	}, nil
 }
 
@@ -128,9 +125,6 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := config.SaveCameraConfig(s.configPath, cfg); err != nil {
 		message = "Failed to save camera configuration."
 		messageClass = "notice err"
-	} else if err := config.SaveLastUpdate(s.statePath, time.Now()); err != nil {
-		message = "Saved config, but failed to store update time."
-		messageClass = "notice warn"
 	}
 
 	view, err := s.buildStatusView(r.Context(), message, messageClass)
@@ -151,7 +145,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
 	device := system.Collect()
 	camera, camWarnings := s.loadCameraConfig()
-	lastUpdated, ok, err := config.LoadLastUpdate(s.statePath)
+	lastUpdated, ok, err := config.ConfigModTime(s.configPath)
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Camera update time unavailable: %v", err))
 	}
