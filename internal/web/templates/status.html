@@ -7,16 +7,53 @@
     <style>
       body { font-family: Georgia, "Times New Roman", serif; margin: 32px; color: #1a1a1a; background: #f8f4ed; }
       h1 { margin: 0 0 12px; }
-      .card { padding: 16px; background: #fff; border: 1px solid #e4ded3; border-radius: 8px; max-width: 640px; }
+      .card { padding: 16px; background: #fff; border: 1px solid #e4ded3; border-radius: 8px; max-width: 720px; }
       .label { color: #6c5f4b; font-size: 14px; }
       .value { font-size: 16px; }
+      .grid { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; align-items: center; }
+      .warn { margin-top: 16px; padding: 12px; background: #fff8e6; border: 1px solid #f0d7a3; border-radius: 8px; }
+      .warn ul { margin: 8px 0 0; padding-left: 20px; }
     </style>
   </head>
   <body>
     <h1>RaspiCam Status</h1>
     <div class="card">
-      <div class="label">Generated at</div>
-      <div class="value">{{ .GeneratedAt }}</div>
+      <div class="grid">
+        <div class="label">Generated at</div>
+        <div class="value">{{ .GeneratedAt }}</div>
+
+        <div class="label">CPU usage</div>
+        <div class="value">{{ .Metrics.CPUUsagePercent }}</div>
+
+        <div class="label">Temperature</div>
+        <div class="value">{{ .Metrics.TemperatureC }}</div>
+
+        <div class="label">Voltage</div>
+        <div class="value">{{ .Metrics.VoltageV }}</div>
+
+        <div class="label">Throttled</div>
+        <div class="value">{{ .Metrics.Throttled }}</div>
+      </div>
+
+      {{ if .Metrics.ThrottledFlags }}
+      <div class="label" style="margin-top: 12px;">Throttling flags</div>
+      <div class="value">
+        {{ range .Metrics.ThrottledFlags }}
+          <div>{{ . }}</div>
+        {{ end }}
+      </div>
+      {{ end }}
     </div>
+
+    {{ if .Warnings }}
+    <div class="warn">
+      <div class="label">Warnings</div>
+      <ul>
+        {{ range .Warnings }}
+        <li>{{ . }}</li>
+        {{ end }}
+      </ul>
+    </div>
+    {{ end }}
   </body>
 </html>

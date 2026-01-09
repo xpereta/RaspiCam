@@ -1,0 +1,17 @@
+[Unit]
+Description=RaspiCam Status UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust User/Group as needed for your Pi setup.
+User=pi
+Group=pi
+Environment=UI_ADDR=:8080
+ExecStart=/usr/local/bin/raspicam-ui
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
