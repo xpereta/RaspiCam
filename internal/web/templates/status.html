@@ -45,6 +45,15 @@
       .metric { display: flex; gap: 8px; align-items: baseline; }
       .metric .label { font-size: 12px; }
       .metric .value { font-weight: 600; }
+      .form { display: grid; gap: 10px; }
+      .toggle { display: flex; align-items: center; gap: 10px; }
+      .toggle input { width: 18px; height: 18px; }
+      .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+      .notice.ok { background: #e8f3ec; color: var(--ok); border: 1px solid #cfe4d6; }
+      .notice.warn { background: #fff4e1; color: var(--warn); border: 1px solid #f0d7a3; }
+      .notice.err { background: #fdeceb; color: var(--err); border: 1px solid #f4c7c3; }
       @media (max-width: 640px) {
         .grid { grid-template-columns: 1fr; }
         .label { font-size: 12px; }
@@ -98,7 +107,33 @@
           </div>
         </div>
         {{ end }}
+      </div>
 
+      <div class="card" style="margin-top: 16px;">
+        <div class="section">
+          <div class="section-title">Camera configuration</div>
+          <form class="form" method="POST" action="/camera-config">
+            <label class="toggle">
+              <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
+              <span>Vertical flip</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="rpiCameraHFlip" {{ if .Camera.HFlip }}checked{{ end }}>
+              <span>Horizontal flip</span>
+            </label>
+            <div class="label">Last updated</div>
+            <div class="value">{{ .Camera.LastUpdated }}</div>
+            <div>
+              <button class="btn" type="submit">Save</button>
+            </div>
+          </form>
+          {{ if .Camera.Message }}
+          <div class="{{ .Camera.MessageClass }}">{{ .Camera.Message }}</div>
+          {{ end }}
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 16px;">
         <div class="section">
           <div class="section-title">MediaMTX</div>
           <div class="grid">

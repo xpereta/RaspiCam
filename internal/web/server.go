@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/xpereta/RaspiCam/internal/config"
 	"github.com/xpereta/RaspiCam/internal/mediamtx"
 	"github.com/xpereta/RaspiCam/internal/metrics"
 	"github.com/xpereta/RaspiCam/internal/system"
@@ -22,6 +23,7 @@ type Server struct {
 	tmpl         *template.Template
 	mediamtxURL  string
 	mediamtxPath string
+	configPath   string
 }
 
 type StatusView struct {
@@ -31,6 +33,7 @@ type StatusView struct {
 	DeviceModel string
 	OSLabel     string
 	Metrics     MetricsView
+	Camera      CameraView
 	MediaMTX    MediaMTXView
 	Warnings    []string
 }
@@ -57,6 +60,14 @@ type MediaMTXView struct {
 	PathReadyClass string
 }
 
+type CameraView struct {
+	VFlip        bool
+	HFlip        bool
+	LastUpdated  string
+	Message      string
+	MessageClass string
+}
+
 func NewServer() (*Server, error) {
 	tmpl, err := template.ParseFS(templatesFS, "templates/status.html")
 	if err != nil {
@@ -67,22 +78,78 @@ func NewServer() (*Server, error) {
 		tmpl:         tmpl,
 		mediamtxURL:  getEnvDefault("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
 		mediamtxPath: getEnvDefault("MEDIAMTX_PATH_NAME", "cam"),
+		configPath:   getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
 	}, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleStatus)
+	mux.HandleFunc("/camera-config", s.handleCameraUpdate)
 	return mux
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	view, err := s.buildStatusView(r.Context(), "", "")
+	if err != nil {
+		http.Error(w, "status unavailable", http.StatusInternalServerError)
+		return
+	}
+	if err := s.tmpl.Execute(w, view); err != nil {
+		http.Error(w, "template render error", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+
+	cfg := config.CameraConfig{
+		VFlip: r.FormValue("rpiCameraVFlip") == "on",
+		HFlip: r.FormValue("rpiCameraHFlip") == "on",
+	}
+
+	message := "Camera configuration saved."
+	messageClass := "notice ok"
+	if err := config.SaveCameraConfig(s.configPath, cfg); err != nil {
+		message = "Failed to save camera configuration."
+		messageClass = "notice err"
+	}
+
+	view, err := s.buildStatusView(r.Context(), message, messageClass)
+	if err != nil {
+		http.Error(w, "status unavailable", http.StatusInternalServerError)
+		return
+	}
+	if err := s.tmpl.Execute(w, view); err != nil {
+		http.Error(w, "template render error", http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) buildStatusView(ctx context.Context, message, messageClass string) (StatusView, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	snap, warnings := metrics.Collect(ctx)
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
 	device := system.Collect()
+	camera, camWarnings := s.loadCameraConfig()
+	lastUpdated, ok, err := config.ConfigModTime(s.configPath)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("Camera update time unavailable: %v", err))
+	}
+
 	view := StatusView{
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
 		Hostname:    hostnameOrUnknown(),
@@ -90,12 +157,12 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		DeviceModel: device.Model,
 		OSLabel:     device.OSLabel,
 		Metrics:     formatMetrics(snap),
+		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
 		MediaMTX:    formatMediaMTX(mtxStatus),
-		Warnings:    append(warnings, mtxWarnings...),
+		Warnings:    append(warnings, append(mtxWarnings, camWarnings...)...),
 	}
-	if err := s.tmpl.Execute(w, view); err != nil {
-		http.Error(w, "template render error", http.StatusInternalServerError)
-	}
+
+	return view, nil
 }
 
 func formatMetrics(snap metrics.Snapshot) MetricsView {
@@ -192,6 +259,28 @@ func getEnvDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func (s *Server) loadCameraConfig() (config.CameraConfig, []string) {
+	cfg, err := config.LoadCameraConfig(s.configPath)
+	if err != nil {
+		return config.CameraConfig{}, []string{fmt.Sprintf("Camera config unavailable: %v", err)}
+	}
+	return cfg, nil
+}
+
+func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, messageClass string) CameraView {
+	lastUpdated := "never"
+	if ok {
+		lastUpdated = updated.Format("2006-01-02 15:04:05")
+	}
+	return CameraView{
+		VFlip:        cfg.VFlip,
+		HFlip:        cfg.HFlip,
+		LastUpdated:  lastUpdated,
+		Message:      message,
+		MessageClass: messageClass,
+	}
 }
 
 func hostnameOrUnknown() string {
