@@ -17,6 +17,7 @@ type CameraConfig struct {
 	HFlip  bool
 	Width  int
 	Height int
+	AWB    string
 }
 
 func LoadCameraConfig(path string) (CameraConfig, error) {
@@ -56,6 +57,11 @@ func LoadCameraConfig(path string) (CameraConfig, error) {
 	} else if ok {
 		config.Height = v
 	}
+	if v, ok, err := getString(pathNode, "rpiCameraAWB"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.AWB = v
+	}
 
 	return config, nil
 }
@@ -83,6 +89,9 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 	}
 	if config.Height > 0 {
 		setInt(pathNode, "rpiCameraHeight", config.Height)
+	}
+	if config.AWB != "" {
+		setString(pathNode, "rpiCameraAWB", config.AWB)
 	}
 
 	out, err := yaml.Marshal(&root)
@@ -236,4 +245,34 @@ func getInt(mapping *yaml.Node, key string) (int, bool, error) {
 		return 0, true, fmt.Errorf("invalid int for %s", key)
 	}
 	return parsed, true, nil
+}
+
+func setString(mapping *yaml.Node, key, value string) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		k := mapping.Content[i]
+		v := mapping.Content[i+1]
+		if k.Value == key {
+			v.Kind = yaml.ScalarNode
+			v.Tag = "!!str"
+			v.Value = value
+			return
+		}
+	}
+
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
+	)
+}
+
+func getString(mapping *yaml.Node, key string) (string, bool, error) {
+	node := findMapValue(mapping, key)
+	if node == nil {
+		return "", false, nil
+	}
+	value := strings.TrimSpace(node.Value)
+	if value == "" {
+		return "", false, nil
+	}
+	return value, true, nil
 }
