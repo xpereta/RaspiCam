@@ -44,6 +44,8 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Server: Go standard library (`net/http`, `html/template`).
 - UI: server-rendered HTML with no auto-refresh.
 - Packaging: single static binary for low footprint.
+- MediaMTX API endpoint is configurable via `MEDIAMTX_API_URL` (default `http://127.0.0.1:9997`).
+- MediaMTX path name is configurable via `MEDIAMTX_PATH_NAME` (default `cam`).
 
 ## Runtime Architecture (High Level)
 - Pi Camera Module V3 -> MediaMTX ingest pipeline -> network stream output.
