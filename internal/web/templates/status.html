@@ -89,6 +89,20 @@
         {{ end }}
 
         <div class="section">
+          <div class="section-title">Device</div>
+          <div class="grid">
+            <div class="label">Model</div>
+            <div class="value">{{ .DeviceModel }}</div>
+
+            <div class="label">OS</div>
+            <div class="value">{{ .OSName }}</div>
+
+            <div class="label">OS version</div>
+            <div class="value">{{ .OSVersion }}</div>
+          </div>
+        </div>
+
+        <div class="section">
           <div class="section-title">MediaMTX</div>
           <div class="grid">
             <div class="label">Service</div>

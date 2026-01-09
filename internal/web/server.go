@@ -12,6 +12,7 @@ import (
 
 	"github.com/xpereta/RaspiCam/internal/mediamtx"
 	"github.com/xpereta/RaspiCam/internal/metrics"
+	"github.com/xpereta/RaspiCam/internal/system"
 )
 
 //go:embed templates/*.html
@@ -27,6 +28,9 @@ type StatusView struct {
 	GeneratedAt string
 	Hostname    string
 	IPAddress   string
+	DeviceModel string
+	OSName      string
+	OSVersion   string
 	Metrics     MetricsView
 	MediaMTX    MediaMTXView
 	Warnings    []string
@@ -79,10 +83,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	snap, warnings := metrics.Collect(ctx)
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
+	device := system.Collect()
 	view := StatusView{
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
 		Hostname:    hostnameOrUnknown(),
 		IPAddress:   primaryIPv4OrUnknown(),
+		DeviceModel: device.Model,
+		OSName:      device.OSName,
+		OSVersion:   device.OSVersion,
 		Metrics:     formatMetrics(snap),
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Warnings:    append(warnings, mtxWarnings...),
