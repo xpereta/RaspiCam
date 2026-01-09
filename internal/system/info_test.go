@@ -36,3 +36,15 @@ func TestBuildOSLabel(t *testing.T) {
 		t.Fatalf("unexpected unknown label: %q", got)
 	}
 }
+
+func TestMapCameraModel(t *testing.T) {
+	if got := mapCameraModel("imx708"); got != "Pi Camera v3 (imx708)" {
+		t.Fatalf("unexpected model: %q", got)
+	}
+	if got := mapCameraModel("ov5647"); got != "Pi Camera v1 (ov5647)" {
+		t.Fatalf("unexpected model: %q", got)
+	}
+	if got := mapCameraModel("unknown"); got != "Unknown camera (unknown)" {
+		t.Fatalf("unexpected model: %q", got)
+	}
+}

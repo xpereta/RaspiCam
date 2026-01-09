@@ -31,6 +31,7 @@ type StatusView struct {
 	Hostname    string
 	IPAddress   string
 	DeviceModel string
+	CameraModel string
 	OSLabel     string
 	Metrics     MetricsView
 	Camera      CameraView
@@ -155,6 +156,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 		Hostname:    hostnameOrUnknown(),
 		IPAddress:   primaryIPv4OrUnknown(),
 		DeviceModel: device.Model,
+		CameraModel: device.Camera,
 		OSLabel:     device.OSLabel,
 		Metrics:     formatMetrics(snap),
 		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
