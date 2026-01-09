@@ -64,6 +64,36 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Basic logs for MediaMTX and UI (systemd journal).
 - UI exposes a simple status page with last update time.
 
+## Service Management
+- Systemd unit file for the UI lives at `systemd/raspicam-ui.service`.
+- Follow the same start-on-boot pattern as MediaMTX:
+  - Move the binary and config to global paths:
+    ```
+    sudo mv raspicam-ui /usr/local/bin/
+    ```
+  - Create the service:
+    ```
+    sudo tee /etc/systemd/system/raspicam-ui.service > /dev/null << EOF
+    [Unit]
+    After=network-online.target
+    Wants=network-online.target
+    [Service]
+    ExecStart=/usr/local/bin/raspicam-ui
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+    ```
+  - Ensure network is ready before start:
+    ```
+    sudo systemctl enable systemd-networkd-wait-online.service
+    ```
+  - Enable and start:
+    ```
+    sudo systemctl daemon-reload
+    sudo systemctl enable raspicam-ui
+    sudo systemctl start raspicam-ui
+    ```
+
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
 - Network endpoints (RTSP/RTMP/WebRTC toggles).
