@@ -29,6 +29,10 @@ This feature will focus only on the `cam` path and will not introduce broader pa
   - `rpiCameraVFlip`
   - `rpiCameraHFlip`
 - Both values are boolean; the UI only allows toggling `true`/`false`.
+- Add a resolution selector that edits `rpiCameraWidth` and `rpiCameraHeight` together.
+- Only these resolution pairs are allowed:
+  - `1280x720`
+  - `1920x1080`
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.

@@ -64,6 +64,7 @@ type MediaMTXView struct {
 type CameraView struct {
 	VFlip        bool
 	HFlip        bool
+	Resolution   string
 	LastUpdated  string
 	Message      string
 	MessageClass string
@@ -119,6 +120,23 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	cfg := config.CameraConfig{
 		VFlip: r.FormValue("rpiCameraVFlip") == "on",
 		HFlip: r.FormValue("rpiCameraHFlip") == "on",
+	}
+	resolution := r.FormValue("resolution")
+	if resolution != "" {
+		width, height, ok := parseResolution(resolution)
+		if !ok {
+			view, err := s.buildStatusView(r.Context(), "Invalid resolution selection.", "notice err")
+			if err != nil {
+				http.Error(w, "status unavailable", http.StatusInternalServerError)
+				return
+			}
+			if err := s.tmpl.Execute(w, view); err != nil {
+				http.Error(w, "template render error", http.StatusInternalServerError)
+			}
+			return
+		}
+		cfg.Width = width
+		cfg.Height = height
 	}
 
 	message := "Camera configuration saved."
@@ -279,10 +297,32 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 	return CameraView{
 		VFlip:        cfg.VFlip,
 		HFlip:        cfg.HFlip,
+		Resolution:   resolutionLabel(cfg.Width, cfg.Height),
 		LastUpdated:  lastUpdated,
 		Message:      message,
 		MessageClass: messageClass,
 	}
+}
+
+func parseResolution(value string) (int, int, bool) {
+	switch value {
+	case "1280x720":
+		return 1280, 720, true
+	case "1920x1080":
+		return 1920, 1080, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func resolutionLabel(width, height int) string {
+	if width == 1280 && height == 720 {
+		return "1280x720"
+	}
+	if width == 1920 && height == 1080 {
+		return "1920x1080"
+	}
+	return ""
 }
 
 func hostnameOrUnknown() string {

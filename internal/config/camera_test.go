@@ -15,6 +15,8 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
     source: rpiCamera
     rpiCameraVFlip: false
     rpiCameraHFlip: true
+    rpiCameraWidth: 1280
+    rpiCameraHeight: 720
   other:
     source: rtsp
 `
@@ -32,9 +34,14 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if !cfg.HFlip {
 		t.Fatalf("expected HFlip true")
 	}
+	if cfg.Width != 1280 || cfg.Height != 720 {
+		t.Fatalf("unexpected resolution")
+	}
 
 	cfg.VFlip = true
 	cfg.HFlip = false
+	cfg.Width = 1920
+	cfg.Height = 1080
 	if err := SaveCameraConfig(path, cfg); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
@@ -45,6 +52,9 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if !updated.VFlip || updated.HFlip {
 		t.Fatalf("unexpected updated values")
+	}
+	if updated.Width != 1920 || updated.Height != 1080 {
+		t.Fatalf("unexpected updated resolution")
 	}
 
 	backupMatches, err := filepath.Glob(path + ".bak-*")
@@ -61,5 +71,8 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "rpiCameraVFlip: true") {
 		t.Fatalf("expected VFlip in output")
+	}
+	if !strings.Contains(string(out), "rpiCameraWidth: 1920") {
+		t.Fatalf("expected width in output")
 	}
 }

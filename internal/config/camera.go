@@ -13,8 +13,10 @@ import (
 )
 
 type CameraConfig struct {
-	VFlip bool
-	HFlip bool
+	VFlip  bool
+	HFlip  bool
+	Width  int
+	Height int
 }
 
 func LoadCameraConfig(path string) (CameraConfig, error) {
@@ -44,6 +46,16 @@ func LoadCameraConfig(path string) (CameraConfig, error) {
 	} else if ok {
 		config.HFlip = v
 	}
+	if v, ok, err := getInt(pathNode, "rpiCameraWidth"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.Width = v
+	}
+	if v, ok, err := getInt(pathNode, "rpiCameraHeight"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.Height = v
+	}
 
 	return config, nil
 }
@@ -66,6 +78,12 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 
 	setBool(pathNode, "rpiCameraVFlip", config.VFlip)
 	setBool(pathNode, "rpiCameraHFlip", config.HFlip)
+	if config.Width > 0 {
+		setInt(pathNode, "rpiCameraWidth", config.Width)
+	}
+	if config.Height > 0 {
+		setInt(pathNode, "rpiCameraHeight", config.Height)
+	}
 
 	out, err := yaml.Marshal(&root)
 	if err != nil {
@@ -182,6 +200,40 @@ func getBool(mapping *yaml.Node, key string) (bool, bool, error) {
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		return false, true, fmt.Errorf("invalid bool for %s", key)
+	}
+	return parsed, true, nil
+}
+
+func setInt(mapping *yaml.Node, key string, value int) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		k := mapping.Content[i]
+		v := mapping.Content[i+1]
+		if k.Value == key {
+			v.Kind = yaml.ScalarNode
+			v.Tag = "!!int"
+			v.Value = strconv.Itoa(value)
+			return
+		}
+	}
+
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: strconv.Itoa(value)},
+	)
+}
+
+func getInt(mapping *yaml.Node, key string) (int, bool, error) {
+	node := findMapValue(mapping, key)
+	if node == nil {
+		return 0, false, nil
+	}
+	value := strings.TrimSpace(node.Value)
+	if value == "" {
+		return 0, false, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, true, fmt.Errorf("invalid int for %s", key)
 	}
 	return parsed, true, nil
 }
