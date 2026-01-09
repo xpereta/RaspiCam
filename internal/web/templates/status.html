@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RaspiCam Status</title>
+    <style>
+      body { font-family: Georgia, "Times New Roman", serif; margin: 32px; color: #1a1a1a; background: #f8f4ed; }
+      h1 { margin: 0 0 12px; }
+      .card { padding: 16px; background: #fff; border: 1px solid #e4ded3; border-radius: 8px; max-width: 640px; }
+      .label { color: #6c5f4b; font-size: 14px; }
+      .value { font-size: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>RaspiCam Status</h1>
+    <div class="card">
+      <div class="label">Generated at</div>
+      <div class="value">{{ .GeneratedAt }}</div>
+    </div>
+  </body>
+</html>
