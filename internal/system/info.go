@@ -9,6 +9,7 @@ import (
 
 type Info struct {
 	Model     string
+	Camera    string
 	OSName    string
 	OSVersion string
 	OSLabel   string
@@ -20,6 +21,7 @@ func Collect() Info {
 	version := osVersion()
 	return Info{
 		Model:     deviceModel(),
+		Camera:    cameraModel(),
 		OSName:    name,
 		OSVersion: version,
 		OSLabel:   buildOSLabel(pretty, name, version),

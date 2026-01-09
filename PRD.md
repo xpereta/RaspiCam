@@ -80,6 +80,7 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - CPU load and temperature.
   - CPU usage percentage and voltage.
   - Throttling status (from `vcgencmd get_throttled`).
+  - Raspberry Pi model and camera model.
   - Memory and disk usage.
   - Network IP address.
   - MediaMTX service status.
