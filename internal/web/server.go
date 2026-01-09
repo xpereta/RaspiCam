@@ -65,6 +65,7 @@ type CameraView struct {
 	VFlip        bool
 	HFlip        bool
 	Resolution   string
+	AWB          string
 	LastUpdated  string
 	Message      string
 	MessageClass string
@@ -137,6 +138,21 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Width = width
 		cfg.Height = height
+	}
+	awb := r.FormValue("rpiCameraAWB")
+	if awb != "" {
+		if !isValidAWB(awb) {
+			view, err := s.buildStatusView(r.Context(), "Invalid AWB selection.", "notice err")
+			if err != nil {
+				http.Error(w, "status unavailable", http.StatusInternalServerError)
+				return
+			}
+			if err := s.tmpl.Execute(w, view); err != nil {
+				http.Error(w, "template render error", http.StatusInternalServerError)
+			}
+			return
+		}
+		cfg.AWB = awb
 	}
 
 	message := "Camera configuration saved."
@@ -298,6 +314,7 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 		VFlip:        cfg.VFlip,
 		HFlip:        cfg.HFlip,
 		Resolution:   resolutionLabel(cfg.Width, cfg.Height),
+		AWB:          cfg.AWB,
 		LastUpdated:  lastUpdated,
 		Message:      message,
 		MessageClass: messageClass,
@@ -323,6 +340,15 @@ func resolutionLabel(width, height int) string {
 		return "1920x1080"
 	}
 	return ""
+}
+
+func isValidAWB(value string) bool {
+	switch value {
+	case "auto", "incandescent", "tungsten", "fluorescent", "indoor", "daylight", "cloudy", "custom":
+		return true
+	default:
+		return false
+	}
 }
 
 func hostnameOrUnknown() string {
