@@ -36,7 +36,8 @@ func deviceModel() string {
 		if err != nil {
 			continue
 		}
-		value := strings.TrimSpace(string(b))
+		value := strings.TrimRight(string(b), "\x00")
+		value = strings.TrimSpace(value)
 		if value != "" {
 			return value
 		}
