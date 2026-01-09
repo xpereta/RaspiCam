@@ -24,3 +24,15 @@ INVALID_LINE
 		t.Fatalf("unexpected PRETTY_NAME: %q", fields["PRETTY_NAME"])
 	}
 }
+
+func TestBuildOSLabel(t *testing.T) {
+	if got := buildOSLabel("Pretty OS 1.0", "Name", "1.0"); got != "Pretty OS 1.0" {
+		t.Fatalf("unexpected pretty label: %q", got)
+	}
+	if got := buildOSLabel("", "Name", "1.0"); got != "Name 1.0" {
+		t.Fatalf("unexpected label: %q", got)
+	}
+	if got := buildOSLabel("", "unknown", "unknown"); got != "unknown" {
+		t.Fatalf("unexpected unknown label: %q", got)
+	}
+}

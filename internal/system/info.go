@@ -15,13 +15,14 @@ type Info struct {
 }
 
 func Collect() Info {
+	pretty := osPrettyName()
 	name := osName()
 	version := osVersion()
 	return Info{
 		Model:     deviceModel(),
 		OSName:    name,
 		OSVersion: version,
-		OSLabel:   buildOSLabel(name, version),
+		OSLabel:   buildOSLabel(pretty, name, version),
 	}
 }
 
@@ -55,9 +56,6 @@ func osRelease() map[string]string {
 
 func osName() string {
 	fields := osRelease()
-	if name := fields["PRETTY_NAME"]; name != "" {
-		return name
-	}
 	if name := fields["NAME"]; name != "" {
 		return name
 	}
@@ -75,7 +73,18 @@ func osVersion() string {
 	return "unknown"
 }
 
-func buildOSLabel(name, version string) string {
+func osPrettyName() string {
+	fields := osRelease()
+	if name := fields["PRETTY_NAME"]; name != "" {
+		return name
+	}
+	return ""
+}
+
+func buildOSLabel(pretty, name, version string) string {
+	if pretty != "" {
+		return pretty
+	}
 	if name == "unknown" && version == "unknown" {
 		return "unknown"
 	}
