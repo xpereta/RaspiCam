@@ -107,7 +107,9 @@
           </div>
         </div>
         {{ end }}
+      </div>
 
+      <div class="card" style="margin-top: 16px;">
         <div class="section">
           <div class="section-title">Camera configuration</div>
           <form class="form" method="POST" action="/camera-config">
@@ -129,7 +131,9 @@
           <div class="{{ .Camera.MessageClass }}">{{ .Camera.Message }}</div>
           {{ end }}
         </div>
+      </div>
 
+      <div class="card" style="margin-top: 16px;">
         <div class="section">
           <div class="section-title">MediaMTX</div>
           <div class="grid">
