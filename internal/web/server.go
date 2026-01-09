@@ -29,8 +29,7 @@ type StatusView struct {
 	Hostname    string
 	IPAddress   string
 	DeviceModel string
-	OSName      string
-	OSVersion   string
+	OSLabel     string
 	Metrics     MetricsView
 	MediaMTX    MediaMTXView
 	Warnings    []string
@@ -89,8 +88,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		Hostname:    hostnameOrUnknown(),
 		IPAddress:   primaryIPv4OrUnknown(),
 		DeviceModel: device.Model,
-		OSName:      device.OSName,
-		OSVersion:   device.OSVersion,
+		OSLabel:     device.OSLabel,
 		Metrics:     formatMetrics(snap),
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Warnings:    append(warnings, mtxWarnings...),

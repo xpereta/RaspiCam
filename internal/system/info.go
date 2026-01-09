@@ -11,13 +11,17 @@ type Info struct {
 	Model     string
 	OSName    string
 	OSVersion string
+	OSLabel   string
 }
 
 func Collect() Info {
+	name := osName()
+	version := osVersion()
 	return Info{
 		Model:     deviceModel(),
-		OSName:    osName(),
-		OSVersion: osVersion(),
+		OSName:    name,
+		OSVersion: version,
+		OSLabel:   buildOSLabel(name, version),
 	}
 }
 
@@ -69,6 +73,19 @@ func osVersion() string {
 		return version
 	}
 	return "unknown"
+}
+
+func buildOSLabel(name, version string) string {
+	if name == "unknown" && version == "unknown" {
+		return "unknown"
+	}
+	if version == "unknown" {
+		return name
+	}
+	if name == "unknown" {
+		return version
+	}
+	return name + " " + version
 }
 
 func parseOSRelease(r io.Reader) map[string]string {
