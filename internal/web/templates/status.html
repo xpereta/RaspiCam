@@ -76,6 +76,17 @@
         </div>
       </div>
 
+      <div class="rowcard" style="margin-bottom: 16px;">
+        <div class="metric">
+          <div class="label">Model</div>
+          <div class="value">{{ .DeviceModel }}</div>
+        </div>
+        <div class="metric">
+          <div class="label">OS</div>
+          <div class="value">{{ .OSLabel }}</div>
+        </div>
+      </div>
+
       <div class="card">
         {{ if .Metrics.ThrottledFlags }}
         <div class="section">
