@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -23,7 +24,9 @@ type Server struct {
 }
 
 type StatusView struct {
-	GeneratedAt time.Time
+	GeneratedAt string
+	Hostname    string
+	IPAddress   string
 	Metrics     MetricsView
 	MediaMTX    MediaMTXView
 	Warnings    []string
@@ -35,16 +38,20 @@ type MetricsView struct {
 	VoltageV        string
 	Throttled       string
 	ThrottledFlags  []string
+	ThrottledClass  string
 }
 
 type MediaMTXView struct {
-	ServiceStatus string
-	APIStatus     string
-	PathName      string
-	PathReady     string
-	SourceType    string
-	Readers       string
-	Tracks        string
+	ServiceStatus  string
+	APIStatus      string
+	PathName       string
+	PathReady      string
+	SourceType     string
+	Readers        string
+	Tracks         string
+	ServiceClass   string
+	APIClass       string
+	PathReadyClass string
 }
 
 func NewServer() (*Server, error) {
@@ -73,7 +80,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	snap, warnings := metrics.Collect(ctx)
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
 	view := StatusView{
-		GeneratedAt: time.Now(),
+		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
+		Hostname:    hostnameOrUnknown(),
+		IPAddress:   primaryIPv4OrUnknown(),
 		Metrics:     formatMetrics(snap),
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Warnings:    append(warnings, mtxWarnings...),
@@ -89,6 +98,7 @@ func formatMetrics(snap metrics.Snapshot) MetricsView {
 		TemperatureC:    "unavailable",
 		VoltageV:        "unavailable",
 		Throttled:       "unavailable",
+		ThrottledClass:  "badge warn",
 	}
 
 	if snap.CPUUsagePercent != nil {
@@ -103,8 +113,10 @@ func formatMetrics(snap metrics.Snapshot) MetricsView {
 	if snap.Throttled != nil {
 		if snap.Throttled.IsThrottled {
 			view.Throttled = "yes"
+			view.ThrottledClass = "badge err"
 		} else {
 			view.Throttled = "no"
+			view.ThrottledClass = "badge ok"
 		}
 		view.ThrottledFlags = snap.Throttled.Flags
 	}
@@ -118,20 +130,25 @@ func formatFloat(v float64, decimals int) string {
 
 func formatMediaMTX(status mediamtx.Status) MediaMTXView {
 	view := MediaMTXView{
-		ServiceStatus: status.ServiceStatus,
-		APIStatus:     status.APIStatus,
-		PathName:      status.PathName,
-		PathReady:     "unavailable",
-		SourceType:    status.SourceType,
-		Readers:       "unavailable",
-		Tracks:        "unavailable",
+		ServiceStatus:  status.ServiceStatus,
+		APIStatus:      status.APIStatus,
+		PathName:       status.PathName,
+		PathReady:      "unavailable",
+		SourceType:     status.SourceType,
+		Readers:        "unavailable",
+		Tracks:         "unavailable",
+		ServiceClass:   "badge warn",
+		APIClass:       "badge warn",
+		PathReadyClass: "badge warn",
 	}
 
 	if status.PathReady != nil {
 		if *status.PathReady {
 			view.PathReady = "yes"
+			view.PathReadyClass = "badge ok"
 		} else {
 			view.PathReady = "no"
+			view.PathReadyClass = "badge err"
 		}
 	}
 	if status.Readers != nil {
@@ -150,6 +167,16 @@ func formatMediaMTX(status mediamtx.Status) MediaMTXView {
 	if view.SourceType == "" {
 		view.SourceType = "unknown"
 	}
+	if view.ServiceStatus == "active" {
+		view.ServiceClass = "badge ok"
+	} else if view.ServiceStatus == "failed" {
+		view.ServiceClass = "badge err"
+	}
+	if view.APIStatus == "ok" {
+		view.APIClass = "badge ok"
+	} else if view.APIStatus == "unavailable" {
+		view.APIClass = "badge err"
+	}
 
 	return view
 }
@@ -159,4 +186,34 @@ func getEnvDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func hostnameOrUnknown() string {
+	name, err := os.Hostname()
+	if err != nil || name == "" {
+		return "unknown"
+	}
+	return name
+}
+
+func primaryIPv4OrUnknown() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "unavailable"
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok || ipNet.IP == nil {
+			continue
+		}
+		ip := ipNet.IP.To4()
+		if ip == nil {
+			continue
+		}
+		if ip.IsLoopback() {
+			continue
+		}
+		return ip.String()
+	}
+	return "unavailable"
 }
