@@ -96,6 +96,18 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
     sudo systemctl start raspicam-ui
     ```
 
+## Local Dev Notes
+- MediaMTX API stub for local UI testing:
+  - Start stub (single request, macOS): `./scripts/mediamtx-stub.sh | nc -l 9997`
+  - Start stub (multiple requests, macOS): `while true; do ./scripts/mediamtx-stub.sh | nc -l 9997; done`
+  - Single request exits after one UI load; multiple requests keeps the listener available across refreshes.
+  - Set `MEDIAMTX_PATH_NAME` if you want a different path name.
+- Run the UI locally:
+  - `go run ./cmd/ui` (default `:8080`)
+  - Optional: `UI_ADDR=:8081 go run ./cmd/ui`
+- Run all tests:
+  - `go test ./...`
+
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
 - Network endpoints (RTSP/RTMP/WebRTC toggles).
