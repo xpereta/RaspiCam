@@ -116,6 +116,15 @@ EOF
     systemctl status raspicam-ui
     journalctl -u raspicam-ui -f
     ```
+  - Permissions:
+    - The UI must be able to write `/usr/local/etc/mediamtx.yml`.
+    - MediaMTX auto-restarts on file changes; no manual restart required.
+
+## Environment Variables
+- `UI_ADDR` (default `:8080`)
+- `MEDIAMTX_API_URL` (default `http://127.0.0.1:9997`)
+- `MEDIAMTX_PATH_NAME` (default `cam`)
+- `MEDIAMTX_CONFIG_PATH` (default `/usr/local/etc/mediamtx.yml`)
 
 ## Local Dev Notes
 - MediaMTX API stub for local UI testing:
@@ -128,6 +137,11 @@ EOF
   - Optional: `UI_ADDR=:8081 go run ./cmd/ui`
 - Run all tests:
   - `go test ./...`
+
+## UI Features
+- Status cards: system metrics, MediaMTX state, device info.
+- Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`.
+- Last update time uses `mediamtx.yml` modification time.
 
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
