@@ -117,6 +117,15 @@
         <div class="section">
           <div class="section-title">Camera configuration</div>
           <form class="form" method="POST" action="/camera-config">
+            <div class="label">Resolution</div>
+            <label class="toggle">
+              <input type="radio" name="resolution" value="1280x720" {{ if eq .Camera.Resolution "1280x720" }}checked{{ end }}>
+              <span>HD 720p (1280 × 720)</span>
+            </label>
+            <label class="toggle">
+              <input type="radio" name="resolution" value="1920x1080" {{ if eq .Camera.Resolution "1920x1080" }}checked{{ end }}>
+              <span>Full HD 1080p (1920 × 1080)</span>
+            </label>
             <label class="toggle">
               <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
               <span>Vertical flip</span>
