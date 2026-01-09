@@ -33,6 +33,27 @@
 
         <div class="label">Throttled</div>
         <div class="value">{{ .Metrics.Throttled }}</div>
+
+        <div class="label">MediaMTX service</div>
+        <div class="value">{{ .MediaMTX.ServiceStatus }}</div>
+
+        <div class="label">MediaMTX API</div>
+        <div class="value">{{ .MediaMTX.APIStatus }}</div>
+
+        <div class="label">Path</div>
+        <div class="value">{{ .MediaMTX.PathName }}</div>
+
+        <div class="label">Path ready</div>
+        <div class="value">{{ .MediaMTX.PathReady }}</div>
+
+        <div class="label">Source type</div>
+        <div class="value">{{ .MediaMTX.SourceType }}</div>
+
+        <div class="label">Readers</div>
+        <div class="value">{{ .MediaMTX.Readers }}</div>
+
+        <div class="label">Tracks</div>
+        <div class="value">{{ .MediaMTX.Tracks }}</div>
       </div>
 
       {{ if .Metrics.ThrottledFlags }}

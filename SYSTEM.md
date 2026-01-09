@@ -44,6 +44,8 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Server: Go standard library (`net/http`, `html/template`).
 - UI: server-rendered HTML with no auto-refresh.
 - Packaging: single static binary for low footprint.
+- MediaMTX API endpoint is configurable via `MEDIAMTX_API_URL` (default `http://127.0.0.1:9997`).
+- MediaMTX path name is configurable via `MEDIAMTX_PATH_NAME` (default `cam`).
 
 ## Runtime Architecture (High Level)
 - Pi Camera Module V3 -> MediaMTX ingest pipeline -> network stream output.
@@ -93,6 +95,18 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
     sudo systemctl enable raspicam-ui
     sudo systemctl start raspicam-ui
     ```
+
+## Local Dev Notes
+- MediaMTX API stub for local UI testing:
+  - Start stub (single request, macOS): `./scripts/mediamtx-stub.sh | nc -l 9997`
+  - Start stub (multiple requests, macOS): `while true; do ./scripts/mediamtx-stub.sh | nc -l 9997; done`
+  - Single request exits after one UI load; multiple requests keeps the listener available across refreshes.
+  - Set `MEDIAMTX_PATH_NAME` if you want a different path name.
+- Run the UI locally:
+  - `go run ./cmd/ui` (default `:8080`)
+  - Optional: `UI_ADDR=:8081 go run ./cmd/ui`
+- Run all tests:
+  - `go test ./...`
 
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).

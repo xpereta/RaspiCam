@@ -89,6 +89,10 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - https://mediamtx.org/docs/usage/control-api
   - https://mediamtx.org/docs/references/control-api
   - https://github.com/bluenviron/mediamtx/blob/v1.15.6/api/openapi.yaml
+- MediaMTX status fields shown in UI (when API enabled):
+  - Service state (systemd).
+  - API reachability.
+  - Path readiness, source type, readers, and tracks.
 - Reads device metrics using system tools:
   - `vcgencmd measure_temp`
   - `vcgencmd measure_volts`
