@@ -69,21 +69,37 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 ## Service Management
 - Systemd unit file for the UI lives at `systemd/raspicam-ui.service`.
 - Follow the same start-on-boot pattern as MediaMTX:
-  - Move the binary and config to global paths:
+  - Build the UI binary on the Pi:
+    ```
+    cd /path/to/RaspiCam
+    go build -o raspicam-ui ./cmd/ui
+    ```
+  - Move the binary to a global path:
     ```
     sudo mv raspicam-ui /usr/local/bin/
     ```
   - Create the service:
+```
+sudo tee /etc/systemd/system/raspicam-ui.service > /dev/null << EOF
+[Unit]
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=UI_ADDR=:8080
+Environment=MEDIAMTX_API_URL=http://127.0.0.1:9997
+Environment=MEDIAMTX_PATH_NAME=cam
+ExecStart=/usr/local/bin/raspicam-ui
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+  - Optional: run as a non-root user (match your Pi setup):
     ```
-    sudo tee /etc/systemd/system/raspicam-ui.service > /dev/null << EOF
-    [Unit]
-    After=network-online.target
-    Wants=network-online.target
-    [Service]
-    ExecStart=/usr/local/bin/raspicam-ui
-    [Install]
-    WantedBy=multi-user.target
-    EOF
+    # Add to [Service]
+    User=pi
+    Group=pi
     ```
   - Ensure network is ready before start:
     ```
@@ -94,6 +110,11 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
     sudo systemctl daemon-reload
     sudo systemctl enable raspicam-ui
     sudo systemctl start raspicam-ui
+    ```
+  - Verify:
+    ```
+    systemctl status raspicam-ui
+    journalctl -u raspicam-ui -f
     ```
 
 ## Local Dev Notes
