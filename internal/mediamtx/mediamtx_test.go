@@ -44,3 +44,53 @@ func TestGetPathStatus(t *testing.T) {
 		t.Fatalf("unexpected tracks: %d", status.Tracks)
 	}
 }
+
+func TestGetPathStatusNotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	_, err := GetPathStatus(context.Background(), server.URL, "cam")
+	if err == nil {
+		t.Fatalf("expected not found error")
+	}
+}
+
+func TestGetPathStatusBadStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := GetPathStatus(context.Background(), server.URL, "cam")
+	if err == nil {
+		t.Fatalf("expected error for 500 status")
+	}
+}
+
+func TestGetPathStatusNoSource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/paths/get/cam" {
+			http.NotFound(w, r)
+			return
+		}
+		resp := pathResponse{
+			Name:    "cam",
+			Ready:   false,
+			Source:  nil,
+			Readers: nil,
+			Tracks:  nil,
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	status, err := GetPathStatus(context.Background(), server.URL, "cam")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status.SourceType != "none" {
+		t.Fatalf("expected source type none")
+	}
+}

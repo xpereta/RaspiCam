@@ -1,0 +1,22 @@
+package web
+
+import "testing"
+
+func TestParseResolution(t *testing.T) {
+	w, h, ok := parseResolution("1280x720")
+	if !ok || w != 1280 || h != 720 {
+		t.Fatalf("unexpected 1280x720 parse")
+	}
+	if _, _, ok := parseResolution("bad"); ok {
+		t.Fatalf("expected invalid resolution")
+	}
+}
+
+func TestIsValidAWB(t *testing.T) {
+	if !isValidAWB("daylight") {
+		t.Fatalf("expected daylight valid")
+	}
+	if isValidAWB("nope") {
+		t.Fatalf("expected invalid awb")
+	}
+}
