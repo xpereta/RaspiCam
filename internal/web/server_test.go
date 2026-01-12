@@ -39,6 +39,29 @@ func TestIsValidAFMode(t *testing.T) {
 	}
 }
 
+func TestParseLensPosition(t *testing.T) {
+	value, ok := parseLensPosition("1.25")
+	if !ok || value != 1.25 {
+		t.Fatalf("expected dot decimal")
+	}
+	value, ok = parseLensPosition("1,5")
+	if !ok || value != 1.5 {
+		t.Fatalf("expected comma decimal")
+	}
+	if _, ok := parseLensPosition("1.2.3"); ok {
+		t.Fatalf("expected multiple dots invalid")
+	}
+	if _, ok := parseLensPosition("1,2,3"); ok {
+		t.Fatalf("expected multiple commas invalid")
+	}
+	if _, ok := parseLensPosition("1,2.3"); ok {
+		t.Fatalf("expected mixed separators invalid")
+	}
+	if _, ok := parseLensPosition(""); ok {
+		t.Fatalf("expected empty invalid")
+	}
+}
+
 func TestCameraMessageFromStatus(t *testing.T) {
 	message, class := cameraMessageFromStatus("saved")
 	if message == "" || class == "" {

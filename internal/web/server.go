@@ -177,8 +177,8 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 		if lensPosition == "" {
 			cfg.LensPosition = nil
 		} else {
-			value, err := strconv.ParseFloat(lensPosition, 64)
-			if err != nil || value < 0 {
+			value, ok := parseLensPosition(lensPosition)
+			if !ok || value < 0 {
 				http.Redirect(w, r, "/?camera=invalid-lens-position", http.StatusSeeOther)
 				return
 			}
@@ -483,6 +483,24 @@ func formatLensPosition(position *float64) string {
 		return ""
 	}
 	return strconv.FormatFloat(*position, 'g', -1, 64)
+}
+
+func parseLensPosition(value string) (float64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	if strings.Count(value, ".")+strings.Count(value, ",") > 1 {
+		return 0, false
+	}
+	if strings.Contains(value, ".") && strings.Contains(value, ",") {
+		return 0, false
+	}
+	normalized := strings.ReplaceAll(value, ",", ".")
+	parsed, err := strconv.ParseFloat(normalized, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
 }
 
 func hostnameOrUnknown() string {
