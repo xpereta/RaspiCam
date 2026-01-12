@@ -18,6 +18,7 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
     rpiCameraWidth: 1280
     rpiCameraHeight: 720
     rpiCameraAWB: indoor
+    rpiCameraMode: "2304:1296:10:P"
   other:
     source: rtsp
 `
@@ -41,12 +42,16 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if cfg.AWB != "indoor" {
 		t.Fatalf("unexpected awb")
 	}
+	if cfg.Mode != "2304:1296:10:P" {
+		t.Fatalf("unexpected mode")
+	}
 
 	cfg.VFlip = true
 	cfg.HFlip = false
 	cfg.Width = 1920
 	cfg.Height = 1080
 	cfg.AWB = "daylight"
+	cfg.Mode = "1536:864:10:P"
 	if err := SaveCameraConfig(path, cfg); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
@@ -63,6 +68,9 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if updated.AWB != "daylight" {
 		t.Fatalf("unexpected updated awb")
+	}
+	if updated.Mode != "1536:864:10:P" {
+		t.Fatalf("unexpected updated mode")
 	}
 
 	backupMatches, err := filepath.Glob(path + ".bak-*")
@@ -86,8 +94,33 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if !strings.Contains(string(out), "rpiCameraAWB: daylight") {
 		t.Fatalf("expected awb in output")
 	}
+	if !strings.Contains(string(out), "rpiCameraMode: \"1536:864:10:P\"") &&
+		!strings.Contains(string(out), "rpiCameraMode: 1536:864:10:P") {
+		t.Fatalf("expected mode in output")
+	}
 	if !strings.Contains(string(out), "other:") {
 		t.Fatalf("expected other path preserved")
+	}
+
+	cfg.Mode = ""
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save config without mode: %v", err)
+	}
+
+	updated, err = LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load without mode: %v", err)
+	}
+	if updated.Mode != "" {
+		t.Fatalf("expected mode cleared")
+	}
+
+	out, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output without mode: %v", err)
+	}
+	if strings.Contains(string(out), "rpiCameraMode:") {
+		t.Fatalf("expected mode key removed")
 	}
 }
 

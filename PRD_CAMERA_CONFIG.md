@@ -35,6 +35,11 @@ This feature will focus only on the `cam` path and will not introduce broader pa
   - `1920x1080`
 - Add an AWB selector for `rpiCameraAWB`.
 - Allowed AWB values: `auto`, `incandescent`, `tungsten`, `fluorescent`, `indoor`, `daylight`, `cloudy`, `custom`.
+- Add a sensor mode selector for `rpiCameraMode`.
+- Allowed modes:
+  - `2304:1296:10:P` (Full sensor, wide FOV)
+  - `1536:864:10:P` (Cropped, narrow FOV)
+  - empty (Not set)
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.

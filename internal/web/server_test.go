@@ -20,3 +20,12 @@ func TestIsValidAWB(t *testing.T) {
 		t.Fatalf("expected invalid awb")
 	}
 }
+
+func TestIsValidCameraMode(t *testing.T) {
+	if !isValidCameraMode("2304:1296:10:P") {
+		t.Fatalf("expected mode valid")
+	}
+	if isValidCameraMode("bad") {
+		t.Fatalf("expected invalid mode")
+	}
+}
