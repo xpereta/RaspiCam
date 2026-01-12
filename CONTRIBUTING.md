@@ -26,3 +26,10 @@ Examples:
 - Fill out the PR template.
 - Include steps to verify the change.
 - Call out risks or limitations.
+- When using `gh pr create`, provide the body via `--body-file` or a heredoc to avoid literal `\n` sequences.
+  - Example: `gh pr create --title "..." --body-file pr-body.md`
+  - Example: `gh pr create --title "..." --body "$(cat <<'EOF'
+    # Summary
+    ...
+    EOF
+    )"`

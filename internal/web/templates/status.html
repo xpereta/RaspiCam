@@ -101,8 +101,8 @@
         </div>
       </div>
 
+      {{ if .Metrics.ThrottledFlags }}
       <div class="card">
-        {{ if .Metrics.ThrottledFlags }}
         <div class="section">
           <div class="section-title">Throttling Flags</div>
           <div class="tags">
@@ -111,8 +111,8 @@
             {{ end }}
           </div>
         </div>
-        {{ end }}
       </div>
+      {{ end }}
 
       <div class="card" style="margin-top: 16px;">
         <div class="section">
