@@ -42,8 +42,10 @@ This feature will focus only on the `cam` path and will not introduce broader pa
   - empty (Not set)
 - Add a focus mode selector for `rpiCameraAfMode`.
 - Allowed focus modes: `manual`, `continuous`.
-- Add a numeric input for `rpiCameraLensPosition`.
+- Add a numeric input for `rpiCameraLensPosition` and an "Infinity focus" checkbox on the same line.
 - `rpiCameraLensPosition` is only editable when `rpiCameraAfMode` is `manual`; otherwise it is read-only and visually disabled.
+- When "Infinity focus" is checked, set `rpiCameraLensPosition` to `0`, make the numeric field read-only, and visually disabled.
+- When the checkbox is unchecked, the numeric field becomes editable.
 - When `rpiCameraLensPosition` changes, show a helper line below the field:
   - `Inifinity focus` when value is `0`.
   - `Aprox <value> meters` otherwise, where `<value>` is `1 / rpiCameraLensPosition`.

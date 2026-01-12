@@ -50,7 +50,10 @@
       .toggle input { width: 18px; height: 18px; }
       select,
       input[type="number"] { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
-      input[type="number"]:disabled { background: #f3efe7; color: var(--muted); }
+      input[type="number"]:disabled,
+      input[type="number"].read-only { background: #f3efe7; color: var(--muted); }
+      .inline-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .inline-row .toggle { margin-left: auto; }
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
@@ -144,15 +147,25 @@
               <option value="continuous" {{ if eq .Camera.AfMode "continuous" }}selected{{ end }}>Continuous</option>
             </select>
             <div class="label">Lens position</div>
-            <input
-              type="number"
-              name="rpiCameraLensPosition"
-              id="lens-position"
-              step="0.01"
-              min="0"
-              value="{{ .Camera.LensPosition }}"
-              {{ if ne .Camera.AfMode "manual" }}disabled{{ end }}
-            >
+            <div class="inline-row">
+              <input
+                type="number"
+                name="rpiCameraLensPosition"
+                id="lens-position"
+                step="0.01"
+                min="0"
+                value="{{ .Camera.LensPosition }}"
+                {{ if ne .Camera.AfMode "manual" }}disabled{{ end }}
+              >
+              <label class="toggle">
+                <input
+                  type="checkbox"
+                  id="lens-infinity"
+                  {{ if eq .Camera.LensPosition "0" }}checked{{ end }}
+                >
+                <span>Infinity focus</span>
+              </label>
+            </div>
             <div class="label" id="lens-position-help" style="display: none;"></div>
             <label class="toggle">
               <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
@@ -260,6 +273,7 @@
         var afMode = document.getElementById("af-mode");
         var lensPosition = document.getElementById("lens-position");
         var lensPositionHelp = document.getElementById("lens-position-help");
+        var lensInfinity = document.getElementById("lens-infinity");
         if (!warning || !mode || !resolutionInputs.length) {
           return;
         }
@@ -307,7 +321,34 @@
           if (!afMode || !lensPosition) {
             return;
           }
-          lensPosition.disabled = afMode.value !== "manual";
+          var manual = afMode.value === "manual";
+          if (!manual) {
+            lensPosition.disabled = true;
+            lensPosition.classList.remove("read-only");
+            if (lensInfinity) {
+              lensInfinity.disabled = true;
+            }
+          } else {
+            lensPosition.disabled = false;
+            if (lensInfinity) {
+              lensInfinity.disabled = false;
+            }
+          }
+          if (lensInfinity && lensInfinity.checked) {
+            if (lensPosition.dataset.prev === undefined) {
+              lensPosition.dataset.prev = lensPosition.value;
+            }
+            lensPosition.value = "0";
+            lensPosition.readOnly = true;
+            lensPosition.classList.add("read-only");
+          } else {
+            if (lensPosition.readOnly) {
+              var previous = lensPosition.dataset.prev || "";
+              lensPosition.value = previous;
+            }
+            lensPosition.readOnly = false;
+            lensPosition.classList.remove("read-only");
+          }
           updateLensHelp();
         }
 
@@ -316,6 +357,9 @@
         }
         if (lensPosition) {
           lensPosition.addEventListener("input", updateLensHelp);
+        }
+        if (lensInfinity) {
+          lensInfinity.addEventListener("change", updateLensState);
         }
         updateLensState();
       })();
