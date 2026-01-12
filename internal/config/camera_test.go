@@ -17,6 +17,7 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
     rpiCameraHFlip: true
     rpiCameraWidth: 1280
     rpiCameraHeight: 720
+    rpiCameraAWB: indoor
   other:
     source: rtsp
 `
@@ -37,11 +38,15 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if cfg.Width != 1280 || cfg.Height != 720 {
 		t.Fatalf("unexpected resolution")
 	}
+	if cfg.AWB != "indoor" {
+		t.Fatalf("unexpected awb")
+	}
 
 	cfg.VFlip = true
 	cfg.HFlip = false
 	cfg.Width = 1920
 	cfg.Height = 1080
+	cfg.AWB = "daylight"
 	if err := SaveCameraConfig(path, cfg); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
@@ -55,6 +60,9 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if updated.Width != 1920 || updated.Height != 1080 {
 		t.Fatalf("unexpected updated resolution")
+	}
+	if updated.AWB != "daylight" {
+		t.Fatalf("unexpected updated awb")
 	}
 
 	backupMatches, err := filepath.Glob(path + ".bak-*")
@@ -74,5 +82,8 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "rpiCameraWidth: 1920") {
 		t.Fatalf("expected width in output")
+	}
+	if !strings.Contains(string(out), "rpiCameraAWB: daylight") {
+		t.Fatalf("expected awb in output")
 	}
 }

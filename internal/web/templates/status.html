@@ -48,6 +48,7 @@
       .form { display: grid; gap: 10px; }
       .toggle { display: flex; align-items: center; gap: 10px; }
       .toggle input { width: 18px; height: 18px; }
+      select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
@@ -126,6 +127,17 @@
               <input type="radio" name="resolution" value="1920x1080" {{ if eq .Camera.Resolution "1920x1080" }}checked{{ end }}>
               <span>Full HD 1080p (1920 × 1080)</span>
             </label>
+            <div class="label">Auto white balance</div>
+            <select name="rpiCameraAWB">
+              <option value="auto" {{ if eq .Camera.AWB "auto" }}selected{{ end }}>Auto</option>
+              <option value="incandescent" {{ if eq .Camera.AWB "incandescent" }}selected{{ end }}>Incandescent</option>
+              <option value="tungsten" {{ if eq .Camera.AWB "tungsten" }}selected{{ end }}>Tungsten</option>
+              <option value="fluorescent" {{ if eq .Camera.AWB "fluorescent" }}selected{{ end }}>Fluorescent</option>
+              <option value="indoor" {{ if eq .Camera.AWB "indoor" }}selected{{ end }}>Indoor</option>
+              <option value="daylight" {{ if eq .Camera.AWB "daylight" }}selected{{ end }}>Daylight</option>
+              <option value="cloudy" {{ if eq .Camera.AWB "cloudy" }}selected{{ end }}>Cloudy</option>
+              <option value="custom" {{ if eq .Camera.AWB "custom" }}selected{{ end }}>Custom</option>
+            </select>
             <label class="toggle">
               <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
               <span>Vertical flip</span>

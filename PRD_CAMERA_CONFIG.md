@@ -33,6 +33,8 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Only these resolution pairs are allowed:
   - `1280x720`
   - `1920x1080`
+- Add an AWB selector for `rpiCameraAWB`.
+- Allowed AWB values: `auto`, `incandescent`, `tungsten`, `fluorescent`, `indoor`, `daylight`, `cloudy`, `custom`.
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.
