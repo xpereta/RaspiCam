@@ -18,6 +18,7 @@ type CameraConfig struct {
 	Width  int
 	Height int
 	AWB    string
+	Mode   string
 }
 
 func LoadCameraConfig(path string) (CameraConfig, error) {
@@ -62,6 +63,11 @@ func LoadCameraConfig(path string) (CameraConfig, error) {
 	} else if ok {
 		config.AWB = v
 	}
+	if v, ok, err := getString(pathNode, "rpiCameraMode"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.Mode = v
+	}
 
 	return config, nil
 }
@@ -92,6 +98,9 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 	}
 	if config.AWB != "" {
 		setString(pathNode, "rpiCameraAWB", config.AWB)
+	}
+	if config.Mode != "" {
+		setString(pathNode, "rpiCameraMode", config.Mode)
 	}
 
 	out, err := yaml.Marshal(&root)

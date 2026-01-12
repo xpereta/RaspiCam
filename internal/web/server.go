@@ -77,6 +77,7 @@ type CameraView struct {
 	HFlip        bool
 	Resolution   string
 	AWB          string
+	Mode         string
 	LastUpdated  string
 	Message      string
 	MessageClass string
@@ -164,6 +165,21 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.AWB = awb
+	}
+	mode := r.FormValue("rpiCameraMode")
+	if mode != "" {
+		if !isValidCameraMode(mode) {
+			view, err := s.buildStatusView(r.Context(), "Invalid camera mode selection.", "notice err")
+			if err != nil {
+				http.Error(w, "status unavailable", http.StatusInternalServerError)
+				return
+			}
+			if err := s.tmpl.Execute(w, view); err != nil {
+				http.Error(w, "template render error", http.StatusInternalServerError)
+			}
+			return
+		}
+		cfg.Mode = mode
 	}
 
 	message := "Camera configuration saved."
@@ -362,6 +378,7 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 		HFlip:        cfg.HFlip,
 		Resolution:   resolutionLabel(cfg.Width, cfg.Height),
 		AWB:          cfg.AWB,
+		Mode:         cfg.Mode,
 		LastUpdated:  lastUpdated,
 		Message:      message,
 		MessageClass: messageClass,
@@ -419,6 +436,15 @@ func resolutionLabel(width, height int) string {
 func isValidAWB(value string) bool {
 	switch value {
 	case "auto", "incandescent", "tungsten", "fluorescent", "indoor", "daylight", "cloudy", "custom":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidCameraMode(value string) bool {
+	switch value {
+	case "2304:1296:10:P", "1536:864:10:P":
 		return true
 	default:
 		return false

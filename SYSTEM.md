@@ -141,7 +141,7 @@ EOF
 
 ## UI Features
 - Status cards: system metrics, MediaMTX state, device info, network stats.
-- Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`.
+- Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`, set resolution, AWB, and sensor mode.
 - Last update time uses `mediamtx.yml` modification time.
 
 ## Configuration Scope (TBD)

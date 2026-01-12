@@ -138,6 +138,12 @@
               <option value="cloudy" {{ if eq .Camera.AWB "cloudy" }}selected{{ end }}>Cloudy</option>
               <option value="custom" {{ if eq .Camera.AWB "custom" }}selected{{ end }}>Custom</option>
             </select>
+            <div class="label">Sensor mode</div>
+            <select name="rpiCameraMode">
+              <option value="" {{ if eq .Camera.Mode "" }}selected{{ end }}>Not set</option>
+              <option value="2304:1296:10:P" {{ if eq .Camera.Mode "2304:1296:10:P" }}selected{{ end }}>Full sensor, wide FOV</option>
+              <option value="1536:864:10:P" {{ if eq .Camera.Mode "1536:864:10:P" }}selected{{ end }}>Cropped, narrow FOV</option>
+            </select>
             <label class="toggle">
               <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
               <span>Vertical flip</span>
