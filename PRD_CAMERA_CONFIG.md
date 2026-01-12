@@ -44,7 +44,9 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Allowed focus modes: `manual`, `continuous`.
 - Add a numeric input for `rpiCameraLensPosition`.
 - `rpiCameraLensPosition` is only editable when `rpiCameraAfMode` is `manual`; otherwise it is read-only and visually disabled.
-- When `rpiCameraLensPosition` changes, show a helper line below the field: `Aprox <value> meters`, where `<value>` is `1 / rpiCameraLensPosition`.
+- When `rpiCameraLensPosition` changes, show a helper line below the field:
+  - `Inifinity focus` when value is `0`.
+  - `Aprox <value> meters` otherwise, where `<value>` is `1 / rpiCameraLensPosition`.
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.
@@ -55,7 +57,7 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Read current values from the config file at load.
 - Write updates to the same config file.
 - Validate config file update before applying.
-- `rpiCameraLensPosition` only accepts numeric values.
+- `rpiCameraLensPosition` only accepts numeric values (including `0` for infinity focus).
 - MediaMTX auto-restarts on config file changes; no manual restart required.
 - Control API updates are not persistent across restarts; the file is the source of truth.
 

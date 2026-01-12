@@ -149,7 +149,7 @@
               name="rpiCameraLensPosition"
               id="lens-position"
               step="0.01"
-              min="0.01"
+              min="0"
               value="{{ .Camera.LensPosition }}"
               {{ if ne .Camera.AfMode "manual" }}disabled{{ end }}
             >
@@ -288,9 +288,14 @@
             return;
           }
           var value = parseFloat(lensPosition.value);
-          if (!isFinite(value) || value <= 0) {
+          if (!isFinite(value) || value < 0) {
             lensPositionHelp.textContent = "";
             lensPositionHelp.style.display = "none";
+            return;
+          }
+          if (value === 0) {
+            lensPositionHelp.textContent = "Inifinity focus";
+            lensPositionHelp.style.display = "block";
             return;
           }
           var meters = 1 / value;

@@ -168,6 +168,29 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if strings.Contains(string(out), "rpiCameraLensPosition:") {
 		t.Fatalf("expected lens position key removed")
 	}
+
+	lensPosition = 0
+	cfg.LensPosition = &lensPosition
+	cfg.LensPositionSet = true
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save config with infinity: %v", err)
+	}
+
+	updated, err = LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load with infinity: %v", err)
+	}
+	if updated.LensPosition == nil || *updated.LensPosition != 0 {
+		t.Fatalf("expected lens position zero")
+	}
+
+	out, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output with infinity: %v", err)
+	}
+	if !strings.Contains(string(out), "rpiCameraLensPosition:") {
+		t.Fatalf("expected lens position key in output")
+	}
 }
 
 func TestLoadCameraConfigMissingPath(t *testing.T) {
