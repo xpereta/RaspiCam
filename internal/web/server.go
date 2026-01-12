@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xpereta/RaspiCam/internal/config"
@@ -78,6 +80,8 @@ type CameraView struct {
 	Resolution   string
 	AWB          string
 	Mode         string
+	AfMode       string
+	LensPosition string
 	LastUpdated  string
 	Message      string
 	MessageClass string
@@ -159,6 +163,28 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg.Mode = mode
+
+	afMode := r.FormValue("rpiCameraAfMode")
+	if !isValidAFMode(afMode) {
+		http.Redirect(w, r, "/?camera=invalid-af-mode", http.StatusSeeOther)
+		return
+	}
+	cfg.AfMode = afMode
+
+	if _, ok := r.Form["rpiCameraLensPosition"]; ok {
+		lensPosition := strings.TrimSpace(r.FormValue("rpiCameraLensPosition"))
+		cfg.LensPositionSet = true
+		if lensPosition == "" {
+			cfg.LensPosition = nil
+		} else {
+			value, ok := parseLensPosition(lensPosition)
+			if !ok || value < 0 {
+				http.Redirect(w, r, "/?camera=invalid-lens-position", http.StatusSeeOther)
+				return
+			}
+			cfg.LensPosition = &value
+		}
+	}
 
 	if err := config.SaveCameraConfig(s.configPath, cfg); err != nil {
 		http.Redirect(w, r, "/?camera=save-error", http.StatusSeeOther)
@@ -348,6 +374,8 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 		Resolution:   resolutionLabel(cfg.Width, cfg.Height),
 		AWB:          cfg.AWB,
 		Mode:         cfg.Mode,
+		AfMode:       cfg.AfMode,
+		LensPosition: formatLensPosition(cfg.LensPosition),
 		LastUpdated:  lastUpdated,
 		Message:      message,
 		MessageClass: messageClass,
@@ -420,6 +448,15 @@ func isValidCameraMode(value string) bool {
 	}
 }
 
+func isValidAFMode(value string) bool {
+	switch value {
+	case "manual", "continuous":
+		return true
+	default:
+		return false
+	}
+}
+
 func cameraMessageFromStatus(status string) (string, string) {
 	switch status {
 	case "saved":
@@ -432,9 +469,38 @@ func cameraMessageFromStatus(status string) (string, string) {
 		return "Invalid AWB selection.", "notice err"
 	case "invalid-mode":
 		return "Invalid camera mode selection.", "notice err"
+	case "invalid-af-mode":
+		return "Invalid focus mode selection.", "notice err"
+	case "invalid-lens-position":
+		return "Invalid lens position selection.", "notice err"
 	default:
 		return "", ""
 	}
+}
+
+func formatLensPosition(position *float64) string {
+	if position == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*position, 'g', -1, 64)
+}
+
+func parseLensPosition(value string) (float64, bool) {
+	if value == "" {
+		return 0, false
+	}
+	if strings.Count(value, ".")+strings.Count(value, ",") > 1 {
+		return 0, false
+	}
+	if strings.Contains(value, ".") && strings.Contains(value, ",") {
+		return 0, false
+	}
+	normalized := strings.ReplaceAll(value, ",", ".")
+	parsed, err := strconv.ParseFloat(normalized, 64)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
 }
 
 func hostnameOrUnknown() string {

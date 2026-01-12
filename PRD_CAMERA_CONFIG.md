@@ -40,6 +40,15 @@ This feature will focus only on the `cam` path and will not introduce broader pa
   - `2304:1296:10:P` (Full sensor, wide FOV)
   - `1536:864:10:P` (Cropped, narrow FOV)
   - empty (Not set)
+- Add a focus mode selector for `rpiCameraAfMode`.
+- Allowed focus modes: `manual`, `continuous`.
+- Add a numeric input for `rpiCameraLensPosition` and an "Infinity focus" checkbox on the same line.
+- `rpiCameraLensPosition` is only editable when `rpiCameraAfMode` is `manual`; otherwise it is read-only and visually disabled.
+- When "Infinity focus" is checked, set `rpiCameraLensPosition` to `0`, make the numeric field read-only, and visually disabled.
+- When the checkbox is unchecked, the numeric field becomes editable.
+- When `rpiCameraLensPosition` changes, show a helper line below the field:
+  - `Inifinity focus` when value is `0`.
+  - `Aprox <value> meters` otherwise, where `<value>` is `1 / rpiCameraLensPosition`.
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.
@@ -50,6 +59,7 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Read current values from the config file at load.
 - Write updates to the same config file.
 - Validate config file update before applying.
+- `rpiCameraLensPosition` only accepts numeric values (including `0` for infinity focus).
 - MediaMTX auto-restarts on config file changes; no manual restart required.
 - Control API updates are not persistent across restarts; the file is the source of truth.
 
