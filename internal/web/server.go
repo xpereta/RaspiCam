@@ -110,7 +110,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := s.buildStatusView(r.Context(), "", "")
+	message, messageClass := cameraMessageFromStatus(r.URL.Query().Get("camera"))
+	view, err := s.buildStatusView(r.Context(), message, messageClass)
 	if err != nil {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
@@ -138,14 +139,7 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	if resolution != "" {
 		width, height, ok := parseResolution(resolution)
 		if !ok {
-			view, err := s.buildStatusView(r.Context(), "Invalid resolution selection.", "notice err")
-			if err != nil {
-				http.Error(w, "status unavailable", http.StatusInternalServerError)
-				return
-			}
-			if err := s.tmpl.Execute(w, view); err != nil {
-				http.Error(w, "template render error", http.StatusInternalServerError)
-			}
+			http.Redirect(w, r, "/?camera=invalid-resolution", http.StatusSeeOther)
 			return
 		}
 		cfg.Width = width
@@ -154,47 +148,24 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	awb := r.FormValue("rpiCameraAWB")
 	if awb != "" {
 		if !isValidAWB(awb) {
-			view, err := s.buildStatusView(r.Context(), "Invalid AWB selection.", "notice err")
-			if err != nil {
-				http.Error(w, "status unavailable", http.StatusInternalServerError)
-				return
-			}
-			if err := s.tmpl.Execute(w, view); err != nil {
-				http.Error(w, "template render error", http.StatusInternalServerError)
-			}
+			http.Redirect(w, r, "/?camera=invalid-awb", http.StatusSeeOther)
 			return
 		}
 		cfg.AWB = awb
 	}
 	mode := r.FormValue("rpiCameraMode")
 	if mode != "" && !isValidCameraMode(mode) {
-		view, err := s.buildStatusView(r.Context(), "Invalid camera mode selection.", "notice err")
-		if err != nil {
-			http.Error(w, "status unavailable", http.StatusInternalServerError)
-			return
-		}
-		if err := s.tmpl.Execute(w, view); err != nil {
-			http.Error(w, "template render error", http.StatusInternalServerError)
-		}
+		http.Redirect(w, r, "/?camera=invalid-mode", http.StatusSeeOther)
 		return
 	}
 	cfg.Mode = mode
 
-	message := "Camera configuration saved."
-	messageClass := "notice ok"
 	if err := config.SaveCameraConfig(s.configPath, cfg); err != nil {
-		message = "Failed to save camera configuration."
-		messageClass = "notice err"
-	}
-
-	view, err := s.buildStatusView(r.Context(), message, messageClass)
-	if err != nil {
-		http.Error(w, "status unavailable", http.StatusInternalServerError)
+		http.Redirect(w, r, "/?camera=save-error", http.StatusSeeOther)
 		return
 	}
-	if err := s.tmpl.Execute(w, view); err != nil {
-		http.Error(w, "template render error", http.StatusInternalServerError)
-	}
+
+	http.Redirect(w, r, "/?camera=saved", http.StatusSeeOther)
 }
 
 func (s *Server) buildStatusView(ctx context.Context, message, messageClass string) (StatusView, error) {
@@ -446,6 +417,23 @@ func isValidCameraMode(value string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func cameraMessageFromStatus(status string) (string, string) {
+	switch status {
+	case "saved":
+		return "Camera configuration saved.", "notice ok"
+	case "save-error":
+		return "Failed to save camera configuration.", "notice err"
+	case "invalid-resolution":
+		return "Invalid resolution selection.", "notice err"
+	case "invalid-awb":
+		return "Invalid AWB selection.", "notice err"
+	case "invalid-mode":
+		return "Invalid camera mode selection.", "notice err"
+	default:
+		return "", ""
 	}
 }
 

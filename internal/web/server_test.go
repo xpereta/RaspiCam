@@ -29,3 +29,18 @@ func TestIsValidCameraMode(t *testing.T) {
 		t.Fatalf("expected invalid mode")
 	}
 }
+
+func TestCameraMessageFromStatus(t *testing.T) {
+	message, class := cameraMessageFromStatus("saved")
+	if message == "" || class == "" {
+		t.Fatalf("expected saved message")
+	}
+	message, class = cameraMessageFromStatus("invalid-mode")
+	if message == "" || class == "" {
+		t.Fatalf("expected invalid mode message")
+	}
+	message, class = cameraMessageFromStatus("nope")
+	if message != "" || class != "" {
+		t.Fatalf("expected empty message for unknown status")
+	}
+}
