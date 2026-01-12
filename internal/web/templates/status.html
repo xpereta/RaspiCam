@@ -127,6 +127,23 @@
               <input type="radio" name="resolution" value="1920x1080" {{ if eq .Camera.Resolution "1920x1080" }}checked{{ end }}>
               <span>Full HD 1080p (1920 × 1080)</span>
             </label>
+            <div id="resolution-warning" class="notice warn" style="display: none;">
+              Resolution is higher than the selected sensor mode pixels.
+            </div>
+            <div class="label">Sensor mode</div>
+            <select name="rpiCameraMode" id="camera-mode">
+              <option value="" {{ if eq .Camera.Mode "" }}selected{{ end }}>Not set</option>
+              <option value="2304:1296:10:P" {{ if eq .Camera.Mode "2304:1296:10:P" }}selected{{ end }}>Full sensor, wide FOV (2304 × 1296)</option>
+              <option value="1536:864:10:P" {{ if eq .Camera.Mode "1536:864:10:P" }}selected{{ end }}>Cropped, narrow FOV (1536 × 864)</option>
+            </select>
+            <label class="toggle">
+              <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
+              <span>Vertical flip</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" name="rpiCameraHFlip" {{ if .Camera.HFlip }}checked{{ end }}>
+              <span>Horizontal flip</span>
+            </label>
             <div class="label">Auto white balance</div>
             <select name="rpiCameraAWB">
               <option value="auto" {{ if eq .Camera.AWB "auto" }}selected{{ end }}>Auto</option>
@@ -138,20 +155,6 @@
               <option value="cloudy" {{ if eq .Camera.AWB "cloudy" }}selected{{ end }}>Cloudy</option>
               <option value="custom" {{ if eq .Camera.AWB "custom" }}selected{{ end }}>Custom</option>
             </select>
-            <div class="label">Sensor mode</div>
-            <select name="rpiCameraMode">
-              <option value="" {{ if eq .Camera.Mode "" }}selected{{ end }}>Not set</option>
-              <option value="2304:1296:10:P" {{ if eq .Camera.Mode "2304:1296:10:P" }}selected{{ end }}>Full sensor, wide FOV</option>
-              <option value="1536:864:10:P" {{ if eq .Camera.Mode "1536:864:10:P" }}selected{{ end }}>Cropped, narrow FOV</option>
-            </select>
-            <label class="toggle">
-              <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
-              <span>Vertical flip</span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" name="rpiCameraHFlip" {{ if .Camera.HFlip }}checked{{ end }}>
-              <span>Horizontal flip</span>
-            </label>
             <div class="label">Last updated</div>
             <div class="value">{{ .Camera.LastUpdated }}</div>
             <div>
@@ -231,5 +234,34 @@
       </div>
       {{ end }}
     </div>
+    <script>
+      (function () {
+        var warning = document.getElementById("resolution-warning");
+        var mode = document.getElementById("camera-mode");
+        var resolutionInputs = document.querySelectorAll("input[name=\"resolution\"]");
+        if (!warning || !mode || !resolutionInputs.length) {
+          return;
+        }
+        function selectedResolution() {
+          for (var i = 0; i < resolutionInputs.length; i++) {
+            if (resolutionInputs[i].checked) {
+              return resolutionInputs[i].value;
+            }
+          }
+          return "";
+        }
+        function updateWarning() {
+          var res = selectedResolution();
+          var modeValue = mode.value;
+          var show = res === "1920x1080" && modeValue === "1536:864:10:P";
+          warning.style.display = show ? "block" : "none";
+        }
+        for (var i = 0; i < resolutionInputs.length; i++) {
+          resolutionInputs[i].addEventListener("change", updateWarning);
+        }
+        mode.addEventListener("change", updateWarning);
+        updateWarning();
+      })();
+    </script>
   </body>
 </html>

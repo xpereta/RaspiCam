@@ -167,20 +167,18 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 		cfg.AWB = awb
 	}
 	mode := r.FormValue("rpiCameraMode")
-	if mode != "" {
-		if !isValidCameraMode(mode) {
-			view, err := s.buildStatusView(r.Context(), "Invalid camera mode selection.", "notice err")
-			if err != nil {
-				http.Error(w, "status unavailable", http.StatusInternalServerError)
-				return
-			}
-			if err := s.tmpl.Execute(w, view); err != nil {
-				http.Error(w, "template render error", http.StatusInternalServerError)
-			}
+	if mode != "" && !isValidCameraMode(mode) {
+		view, err := s.buildStatusView(r.Context(), "Invalid camera mode selection.", "notice err")
+		if err != nil {
+			http.Error(w, "status unavailable", http.StatusInternalServerError)
 			return
 		}
-		cfg.Mode = mode
+		if err := s.tmpl.Execute(w, view); err != nil {
+			http.Error(w, "template render error", http.StatusInternalServerError)
+		}
+		return
 	}
+	cfg.Mode = mode
 
 	message := "Camera configuration saved."
 	messageClass := "notice ok"

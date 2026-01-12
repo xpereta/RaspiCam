@@ -101,6 +101,27 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if !strings.Contains(string(out), "other:") {
 		t.Fatalf("expected other path preserved")
 	}
+
+	cfg.Mode = ""
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save config without mode: %v", err)
+	}
+
+	updated, err = LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load without mode: %v", err)
+	}
+	if updated.Mode != "" {
+		t.Fatalf("expected mode cleared")
+	}
+
+	out, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output without mode: %v", err)
+	}
+	if strings.Contains(string(out), "rpiCameraMode:") {
+		t.Fatalf("expected mode key removed")
+	}
 }
 
 func TestLoadCameraConfigMissingPath(t *testing.T) {

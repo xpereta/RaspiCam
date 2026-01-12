@@ -101,6 +101,8 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 	}
 	if config.Mode != "" {
 		setString(pathNode, "rpiCameraMode", config.Mode)
+	} else {
+		deleteKey(pathNode, "rpiCameraMode")
 	}
 
 	out, err := yaml.Marshal(&root)
@@ -272,6 +274,16 @@ func setString(mapping *yaml.Node, key, value string) {
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
 	)
+}
+
+func deleteKey(mapping *yaml.Node, key string) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		k := mapping.Content[i]
+		if k.Value == key {
+			mapping.Content = append(mapping.Content[:i], mapping.Content[i+2:]...)
+			return
+		}
+	}
 }
 
 func getString(mapping *yaml.Node, key string) (string, bool, error) {
