@@ -86,4 +86,38 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if !strings.Contains(string(out), "rpiCameraAWB: daylight") {
 		t.Fatalf("expected awb in output")
 	}
+	if !strings.Contains(string(out), "other:") {
+		t.Fatalf("expected other path preserved")
+	}
+}
+
+func TestLoadCameraConfigMissingPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "mediamtx.yml")
+	input := `paths:
+  other:
+    source: rtsp
+`
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := LoadCameraConfig(path); err == nil {
+		t.Fatalf("expected error for missing cam path")
+	}
+}
+
+func TestLoadCameraConfigInvalidValues(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "mediamtx.yml")
+	input := `paths:
+  cam:
+    rpiCameraVFlip: notabool
+    rpiCameraWidth: notanint
+`
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if _, err := LoadCameraConfig(path); err == nil {
+		t.Fatalf("expected error for invalid values")
+	}
 }
