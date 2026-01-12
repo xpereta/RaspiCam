@@ -30,6 +30,15 @@ func TestIsValidCameraMode(t *testing.T) {
 	}
 }
 
+func TestIsValidAFMode(t *testing.T) {
+	if !isValidAFMode("manual") {
+		t.Fatalf("expected manual valid")
+	}
+	if isValidAFMode("bad") {
+		t.Fatalf("expected invalid af mode")
+	}
+}
+
 func TestCameraMessageFromStatus(t *testing.T) {
 	message, class := cameraMessageFromStatus("saved")
 	if message == "" || class == "" {

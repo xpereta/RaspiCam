@@ -13,12 +13,15 @@ import (
 )
 
 type CameraConfig struct {
-	VFlip  bool
-	HFlip  bool
-	Width  int
-	Height int
-	AWB    string
-	Mode   string
+	VFlip           bool
+	HFlip           bool
+	Width           int
+	Height          int
+	AWB             string
+	Mode            string
+	AfMode          string
+	LensPosition    *float64
+	LensPositionSet bool
 }
 
 func LoadCameraConfig(path string) (CameraConfig, error) {
@@ -68,6 +71,17 @@ func LoadCameraConfig(path string) (CameraConfig, error) {
 	} else if ok {
 		config.Mode = v
 	}
+	if v, ok, err := getString(pathNode, "rpiCameraAfMode"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.AfMode = v
+	}
+	if v, ok, err := getFloat(pathNode, "rpiCameraLensPosition"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.LensPosition = &v
+		config.LensPositionSet = true
+	}
 
 	return config, nil
 }
@@ -103,6 +117,18 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 		setString(pathNode, "rpiCameraMode", config.Mode)
 	} else {
 		deleteKey(pathNode, "rpiCameraMode")
+	}
+	if config.AfMode != "" {
+		setString(pathNode, "rpiCameraAfMode", config.AfMode)
+	} else {
+		deleteKey(pathNode, "rpiCameraAfMode")
+	}
+	if config.LensPositionSet {
+		if config.LensPosition == nil {
+			deleteKey(pathNode, "rpiCameraLensPosition")
+		} else {
+			setFloat(pathNode, "rpiCameraLensPosition", *config.LensPosition)
+		}
 	}
 
 	out, err := yaml.Marshal(&root)
@@ -258,6 +284,24 @@ func getInt(mapping *yaml.Node, key string) (int, bool, error) {
 	return parsed, true, nil
 }
 
+func setFloat(mapping *yaml.Node, key string, value float64) {
+	for i := 0; i < len(mapping.Content)-1; i += 2 {
+		k := mapping.Content[i]
+		v := mapping.Content[i+1]
+		if k.Value == key {
+			v.Kind = yaml.ScalarNode
+			v.Tag = "!!float"
+			v.Value = strconv.FormatFloat(value, 'g', -1, 64)
+			return
+		}
+	}
+
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: strconv.FormatFloat(value, 'g', -1, 64)},
+	)
+}
+
 func setString(mapping *yaml.Node, key, value string) {
 	for i := 0; i < len(mapping.Content)-1; i += 2 {
 		k := mapping.Content[i]
@@ -284,6 +328,22 @@ func deleteKey(mapping *yaml.Node, key string) {
 			return
 		}
 	}
+}
+
+func getFloat(mapping *yaml.Node, key string) (float64, bool, error) {
+	node := findMapValue(mapping, key)
+	if node == nil {
+		return 0, false, nil
+	}
+	value := strings.TrimSpace(node.Value)
+	if value == "" {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, true, fmt.Errorf("invalid float for %s", key)
+	}
+	return parsed, true, nil
 }
 
 func getString(mapping *yaml.Node, key string) (string, bool, error) {

@@ -19,6 +19,8 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
     rpiCameraHeight: 720
     rpiCameraAWB: indoor
     rpiCameraMode: "2304:1296:10:P"
+    rpiCameraAfMode: continuous
+    rpiCameraLensPosition: 1.25
   other:
     source: rtsp
 `
@@ -45,6 +47,12 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	if cfg.Mode != "2304:1296:10:P" {
 		t.Fatalf("unexpected mode")
 	}
+	if cfg.AfMode != "continuous" {
+		t.Fatalf("unexpected af mode")
+	}
+	if cfg.LensPosition == nil || *cfg.LensPosition != 1.25 {
+		t.Fatalf("unexpected lens position")
+	}
 
 	cfg.VFlip = true
 	cfg.HFlip = false
@@ -52,6 +60,10 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	cfg.Height = 1080
 	cfg.AWB = "daylight"
 	cfg.Mode = "1536:864:10:P"
+	cfg.AfMode = "manual"
+	lensPosition := 2.5
+	cfg.LensPosition = &lensPosition
+	cfg.LensPositionSet = true
 	if err := SaveCameraConfig(path, cfg); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
@@ -71,6 +83,12 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if updated.Mode != "1536:864:10:P" {
 		t.Fatalf("unexpected updated mode")
+	}
+	if updated.AfMode != "manual" {
+		t.Fatalf("unexpected updated af mode")
+	}
+	if updated.LensPosition == nil || *updated.LensPosition != 2.5 {
+		t.Fatalf("unexpected updated lens position")
 	}
 
 	backupMatches, err := filepath.Glob(path + ".bak-*")
@@ -98,6 +116,12 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 		!strings.Contains(string(out), "rpiCameraMode: 1536:864:10:P") {
 		t.Fatalf("expected mode in output")
 	}
+	if !strings.Contains(string(out), "rpiCameraAfMode: manual") {
+		t.Fatalf("expected af mode in output")
+	}
+	if !strings.Contains(string(out), "rpiCameraLensPosition: 2.5") {
+		t.Fatalf("expected lens position in output")
+	}
 	if !strings.Contains(string(out), "other:") {
 		t.Fatalf("expected other path preserved")
 	}
@@ -121,6 +145,28 @@ func TestLoadAndSaveCameraConfig(t *testing.T) {
 	}
 	if strings.Contains(string(out), "rpiCameraMode:") {
 		t.Fatalf("expected mode key removed")
+	}
+
+	cfg.LensPosition = nil
+	cfg.LensPositionSet = true
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save config without lens position: %v", err)
+	}
+
+	updated, err = LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load without lens position: %v", err)
+	}
+	if updated.LensPosition != nil {
+		t.Fatalf("expected lens position cleared")
+	}
+
+	out, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output without lens position: %v", err)
+	}
+	if strings.Contains(string(out), "rpiCameraLensPosition:") {
+		t.Fatalf("expected lens position key removed")
 	}
 }
 

@@ -48,7 +48,9 @@
       .form { display: grid; gap: 10px; }
       .toggle { display: flex; align-items: center; gap: 10px; }
       .toggle input { width: 18px; height: 18px; }
-      select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+      select,
+      input[type="number"] { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+      input[type="number"]:disabled { background: #f3efe7; color: var(--muted); }
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
@@ -136,6 +138,22 @@
               <option value="2304:1296:10:P" {{ if eq .Camera.Mode "2304:1296:10:P" }}selected{{ end }}>Full sensor, wide FOV (2304 × 1296)</option>
               <option value="1536:864:10:P" {{ if eq .Camera.Mode "1536:864:10:P" }}selected{{ end }}>Cropped, narrow FOV (1536 × 864)</option>
             </select>
+            <div class="label">Focus mode</div>
+            <select name="rpiCameraAfMode" id="af-mode">
+              <option value="manual" {{ if eq .Camera.AfMode "manual" }}selected{{ end }}>Manual</option>
+              <option value="continuous" {{ if eq .Camera.AfMode "continuous" }}selected{{ end }}>Continuous</option>
+            </select>
+            <div class="label">Lens position</div>
+            <input
+              type="number"
+              name="rpiCameraLensPosition"
+              id="lens-position"
+              step="0.01"
+              min="0.01"
+              value="{{ .Camera.LensPosition }}"
+              {{ if ne .Camera.AfMode "manual" }}disabled{{ end }}
+            >
+            <div class="label" id="lens-position-help" style="display: none;"></div>
             <label class="toggle">
               <input type="checkbox" name="rpiCameraVFlip" {{ if .Camera.VFlip }}checked{{ end }}>
               <span>Vertical flip</span>
@@ -239,6 +257,9 @@
         var warning = document.getElementById("resolution-warning");
         var mode = document.getElementById("camera-mode");
         var resolutionInputs = document.querySelectorAll("input[name=\"resolution\"]");
+        var afMode = document.getElementById("af-mode");
+        var lensPosition = document.getElementById("lens-position");
+        var lensPositionHelp = document.getElementById("lens-position-help");
         if (!warning || !mode || !resolutionInputs.length) {
           return;
         }
@@ -261,6 +282,37 @@
         }
         mode.addEventListener("change", updateWarning);
         updateWarning();
+
+        function updateLensHelp() {
+          if (!lensPosition || !lensPositionHelp) {
+            return;
+          }
+          var value = parseFloat(lensPosition.value);
+          if (!isFinite(value) || value <= 0) {
+            lensPositionHelp.textContent = "";
+            lensPositionHelp.style.display = "none";
+            return;
+          }
+          var meters = 1 / value;
+          lensPositionHelp.textContent = "Aprox " + meters.toFixed(2) + " meters";
+          lensPositionHelp.style.display = "block";
+        }
+
+        function updateLensState() {
+          if (!afMode || !lensPosition) {
+            return;
+          }
+          lensPosition.disabled = afMode.value !== "manual";
+          updateLensHelp();
+        }
+
+        if (afMode) {
+          afMode.addEventListener("change", updateLensState);
+        }
+        if (lensPosition) {
+          lensPosition.addEventListener("input", updateLensHelp);
+        }
+        updateLensState();
       })();
     </script>
   </body>
