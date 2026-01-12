@@ -29,6 +29,7 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Provides:
   - Basic system health status (CPU load, memory, disk, temperature, uptime).
   - MediaMTX status (service up/down, stream state if available).
+  - Network status (IP address, interface, rates, WiFi details).
   - A form to edit selected configuration parameters (TBD).
 - Uses MediaMTX Control API for health/state where applicable:
   - https://mediamtx.org/docs/usage/control-api
@@ -139,7 +140,7 @@ EOF
   - `go test ./...`
 
 ## UI Features
-- Status cards: system metrics, MediaMTX state, device info.
+- Status cards: system metrics, MediaMTX state, device info, network stats.
 - Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`.
 - Last update time uses `mediamtx.yml` modification time.
 

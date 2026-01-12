@@ -186,6 +186,34 @@
         </div>
       </div>
 
+      <div class="card" style="margin-top: 16px;">
+        <div class="section">
+          <div class="section-title">Network</div>
+          <div class="grid">
+            <div class="label">Interface</div>
+            <div class="value">{{ .Network.Interface }}</div>
+
+            <div class="label">IP address</div>
+            <div class="value">{{ .Network.IPAddress }}</div>
+
+            <div class="label">Input rate</div>
+            <div class="value">{{ .Network.RxRate }}</div>
+
+            <div class="label">Output rate</div>
+            <div class="value">{{ .Network.TxRate }}</div>
+
+            <div class="label">WiFi SSID</div>
+            <div class="value">{{ .Network.WiFiSSID }}</div>
+
+            <div class="label">WiFi data rate</div>
+            <div class="value">{{ .Network.WiFiRate }}</div>
+
+            <div class="label">WiFi link quality</div>
+            <div class="value">{{ .Network.WiFiLinkQuality }}</div>
+          </div>
+        </div>
+      </div>
+
       {{ if .Warnings }}
       <div class="warnbox">
         <div class="section-title">Warnings</div>

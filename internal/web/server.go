@@ -36,6 +36,7 @@ type StatusView struct {
 	Metrics     MetricsView
 	Camera      CameraView
 	MediaMTX    MediaMTXView
+	Network     NetworkView
 	Warnings    []string
 }
 
@@ -59,6 +60,16 @@ type MediaMTXView struct {
 	ServiceClass   string
 	APIClass       string
 	PathReadyClass string
+}
+
+type NetworkView struct {
+	Interface       string
+	IPAddress       string
+	RxRate          string
+	TxRate          string
+	WiFiSSID        string
+	WiFiRate        string
+	WiFiLinkQuality string
 }
 
 type CameraView struct {
@@ -179,6 +190,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 	snap, warnings := metrics.Collect(ctx)
 	mtxStatus, mtxWarnings := mediamtx.Collect(ctx, s.mediamtxURL, s.mediamtxPath)
 	device := system.Collect()
+	network, networkWarnings := system.CollectNetwork(ctx)
 	camera, camWarnings := s.loadCameraConfig()
 	lastUpdated, ok, err := config.ConfigModTime(s.configPath)
 	if err != nil {
@@ -195,7 +207,8 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 		Metrics:     formatMetrics(snap),
 		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
 		MediaMTX:    formatMediaMTX(mtxStatus),
-		Warnings:    append(warnings, append(mtxWarnings, camWarnings...)...),
+		Network:     formatNetwork(network),
+		Warnings:    append(warnings, append(append(mtxWarnings, camWarnings...), networkWarnings...)...),
 	}
 
 	return view, nil
@@ -290,6 +303,40 @@ func formatMediaMTX(status mediamtx.Status) MediaMTXView {
 	return view
 }
 
+func formatNetwork(snap system.NetworkSnapshot) NetworkView {
+	view := NetworkView{
+		Interface:       "unavailable",
+		IPAddress:       "unavailable",
+		RxRate:          "unavailable",
+		TxRate:          "unavailable",
+		WiFiSSID:        "unavailable",
+		WiFiRate:        "unavailable",
+		WiFiLinkQuality: "unavailable",
+	}
+
+	if snap.Interface != "" {
+		view.Interface = snap.Interface
+	}
+	if snap.IPAddress != "" {
+		view.IPAddress = snap.IPAddress
+	}
+	if snap.RxBytesPerSec != nil {
+		view.RxRate = formatRate(*snap.RxBytesPerSec)
+	}
+	if snap.TxBytesPerSec != nil {
+		view.TxRate = formatRate(*snap.TxBytesPerSec)
+	}
+	if snap.WiFiSSID != "" {
+		view.WiFiSSID = snap.WiFiSSID
+	}
+	if snap.WiFiLinkQuality != "" {
+		view.WiFiLinkQuality = snap.WiFiLinkQuality
+	}
+	view.WiFiRate = formatWiFiRate(snap.WiFiTxRate, snap.WiFiRxRate)
+
+	return view
+}
+
 func getEnvDefault(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -319,6 +366,33 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 		Message:      message,
 		MessageClass: messageClass,
 	}
+}
+
+func formatRate(bytesPerSec float64) string {
+	unit := "B/s"
+	value := bytesPerSec
+	units := []string{"B/s", "KB/s", "MB/s", "GB/s"}
+	for i := 0; i < len(units); i++ {
+		if value < 1024 || i == len(units)-1 {
+			unit = units[i]
+			break
+		}
+		value /= 1024
+	}
+	return fmt.Sprintf("%.1f %s", value, unit)
+}
+
+func formatWiFiRate(txRate, rxRate string) string {
+	if txRate == "" && rxRate == "" {
+		return "unavailable"
+	}
+	if txRate != "" && rxRate != "" {
+		return fmt.Sprintf("TX %s, RX %s", txRate, rxRate)
+	}
+	if txRate != "" {
+		return "TX " + txRate
+	}
+	return "RX " + rxRate
 }
 
 func parseResolution(value string) (int, int, bool) {
