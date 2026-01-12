@@ -83,6 +83,8 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - Raspberry Pi model and camera model.
   - Memory and disk usage.
   - Network IP address.
+  - Network input/output rate.
+  - WiFi SSID, data rate, and link quality.
   - MediaMTX service status.
   - MediaMTX stream state if exposed by Control API.
 - Provides configuration editing for a limited set of parameters (TBD).
