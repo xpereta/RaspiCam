@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/xpereta/RaspiCam/internal/config"
+	"github.com/xpereta/RaspiCam/internal/focusassist"
 	"github.com/xpereta/RaspiCam/internal/mediamtx"
 	"github.com/xpereta/RaspiCam/internal/metrics"
 	"github.com/xpereta/RaspiCam/internal/system"
@@ -22,10 +23,12 @@ import (
 var templatesFS embed.FS
 
 type Server struct {
-	tmpl         *template.Template
-	mediamtxURL  string
-	mediamtxPath string
-	configPath   string
+	tmpl               *template.Template
+	mediamtxURL        string
+	mediamtxPath       string
+	configPath         string
+	focusAssist        *focusassist.Service
+	captureUnavailable string
 }
 
 type StatusView struct {
@@ -40,6 +43,7 @@ type StatusView struct {
 	MediaMTX    MediaMTXView
 	Network     NetworkView
 	Warnings    []string
+	NavActive   string
 }
 
 type MetricsView struct {
@@ -88,16 +92,24 @@ type CameraView struct {
 }
 
 func NewServer() (*Server, error) {
-	tmpl, err := template.ParseFS(templatesFS, "templates/status.html")
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
 
+	capturer, err := focusassist.NewCommandCapturer()
+	captureUnavailable := ""
+	if err != nil {
+		captureUnavailable = err.Error()
+	}
+
 	return &Server{
-		tmpl:         tmpl,
-		mediamtxURL:  getEnvDefault("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
-		mediamtxPath: getEnvDefault("MEDIAMTX_PATH_NAME", "cam"),
-		configPath:   getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
+		tmpl:               tmpl,
+		mediamtxURL:        getEnvDefault("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
+		mediamtxPath:       getEnvDefault("MEDIAMTX_PATH_NAME", "cam"),
+		configPath:         getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
+		focusAssist:        focusassist.NewService(capturer),
+		captureUnavailable: captureUnavailable,
 	}, nil
 }
 
@@ -105,6 +117,11 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleStatus)
 	mux.HandleFunc("/camera-config", s.handleCameraUpdate)
+	mux.HandleFunc("/focus-assist", s.handleFocusAssist)
+	mux.HandleFunc("/focus-assist/scan", s.handleFocusAssistScan)
+	mux.HandleFunc("/focus-assist/image", s.handleFocusAssistImage)
+	mux.HandleFunc("/focus-assist/apply", s.handleFocusAssistApply)
+	mux.HandleFunc("/focus-assist/auto", s.handleFocusAssistAuto)
 	return mux
 }
 
@@ -120,7 +137,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
 	}
-	if err := s.tmpl.Execute(w, view); err != nil {
+	if err := s.tmpl.ExecuteTemplate(w, "status.html", view); err != nil {
 		http.Error(w, "template render error", http.StatusInternalServerError)
 	}
 }
@@ -220,6 +237,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Network:     formatNetwork(network),
 		Warnings:    append(warnings, append(append(mtxWarnings, camWarnings...), networkWarnings...)...),
+		NavActive:   "status",
 	}
 
 	return view, nil

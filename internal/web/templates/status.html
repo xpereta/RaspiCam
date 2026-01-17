@@ -25,6 +25,9 @@
       .wrap { max-width: 860px; margin: 40px auto 60px; padding: 0 20px; }
       h1 { margin: 0 0 6px; font-weight: 600; letter-spacing: -0.5px; }
       .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+      .nav { display: flex; gap: 12px; margin: 10px 0 20px; flex-wrap: wrap; }
+      .nav a { text-decoration: none; color: var(--muted); font-weight: 600; padding: 6px 10px; border-radius: 999px; border: 1px solid transparent; }
+      .nav a.active { color: var(--ink); background: #fff; border-color: var(--line); }
       .card { padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
       .rowcard { padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
       .section { margin-top: 18px; }
@@ -54,6 +57,7 @@
       input[type="number"].read-only { background: #f3efe7; color: var(--muted); }
       .inline-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+      .btn.secondary { background: #f0e7d7; color: var(--ink); border: 1px solid var(--line); }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
       .notice.ok { background: #e8f3ec; color: var(--ok); border: 1px solid #cfe4d6; }
@@ -70,6 +74,10 @@
       <h1>RaspiCam Status</h1>
       <div class="subtitle">Snapshot at {{ .GeneratedAt }}</div>
       <div class="subtitle">Host {{ .Hostname }} · {{ .IPAddress }}</div>
+      <nav class="nav">
+        <a href="/" class="{{ if eq .NavActive "status" }}active{{ end }}">Status</a>
+        <a href="/focus-assist" class="{{ if eq .NavActive "focus" }}active{{ end }}">Focus Assist</a>
+      </nav>
 
       <div class="rowcard" style="margin-bottom: 16px;">
         <div class="metric">
@@ -164,6 +172,7 @@
                 >
                 <span>Infinity focus</span>
               </label>
+              <a class="btn secondary" href="/focus-assist">Focus Assist</a>
             </div>
             <div class="label" id="lens-position-help" style="display: none;"></div>
             <label class="toggle">

@@ -143,6 +143,14 @@ EOF
 - Status cards: system metrics, MediaMTX state, device info, network stats.
 - Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`, set resolution, AWB, and sensor mode.
 - Last update time uses `mediamtx.yml` modification time.
+- Focus assist (planned): help select `rpiCameraLensPosition` by scoring sharpness in a
+  user-selected region and recommending the best lens position. The UI includes a
+  thumbnail gallery so users can inspect captured frames and choose a lens position
+  manually. Real-time scoring depends on libcamera support for fast frames or focus
+  metadata; otherwise use a step-and-capture flow with still images.
+  - Navigation: Status | Camera Config | Focus Assist.
+  - Focus Assist is reachable directly from the primary nav and via Camera Config.
+  - Long-running actions surface progress/status in the UI.
 
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
