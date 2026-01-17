@@ -121,6 +121,7 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
 - Capture logs should be available on demand without overwhelming the page by default.
 - Provide a way to stop/start the MediaMTX service from the web UI to release the camera
   during focus assist scans.
+- Captured stills must use the current camera configuration for sensor mode and flips.
 - Feasibility notes:
   - Real-time scoring is only feasible if the Pi camera stack exposes a low-latency
     frame source plus per-frame focus metadata or supports quick successive snapshots.

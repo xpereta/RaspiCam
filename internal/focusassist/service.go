@@ -25,8 +25,14 @@ var (
 	ErrCaptureUnavailable = errors.New("capture unavailable")
 )
 
+type CaptureSettings struct {
+	Mode  string
+	VFlip bool
+	HFlip bool
+}
+
 type Capturer interface {
-	Capture(ctx context.Context, lensPosition float64) (CaptureResult, error)
+	Capture(ctx context.Context, lensPosition float64, settings CaptureSettings) (CaptureResult, error)
 }
 
 type Status struct {
@@ -68,10 +74,11 @@ const (
 )
 
 type ScanParams struct {
-	Start  float64
-	End    float64
-	Step   float64
-	Region Region
+	Start    float64
+	End      float64
+	Step     float64
+	Region   Region
+	Settings CaptureSettings
 }
 
 type Service struct {
@@ -142,11 +149,11 @@ func (s *Service) StartScan(ctx context.Context, params ScanParams) error {
 	s.logs = nil
 	s.mu.Unlock()
 
-	go s.runScan(ctx, params.Region, positions)
+	go s.runScan(ctx, params, positions)
 	return nil
 }
 
-func (s *Service) runScan(ctx context.Context, region Region, positions []float64) {
+func (s *Service) runScan(ctx context.Context, params ScanParams, positions []float64) {
 	for i, position := range positions {
 		s.updateStatus(func(status *Status) {
 			status.CurrentLens = position
@@ -155,7 +162,7 @@ func (s *Service) runScan(ctx context.Context, region Region, positions []float6
 		})
 
 		stepCtx, cancel := context.WithTimeout(ctx, s.captureTimeout)
-		result, err := s.capturer.Capture(stepCtx, position)
+		result, err := s.capturer.Capture(stepCtx, position, params.Settings)
 		cancel()
 		if err != nil {
 			s.appendLog(LogEntry{
@@ -182,7 +189,7 @@ func (s *Service) runScan(ctx context.Context, region Region, positions []float6
 			return
 		}
 
-		score, err := ScoreImage(img, region)
+		score, err := ScoreImage(img, params.Region)
 		if err != nil {
 			s.failScan(fmt.Sprintf("score failed at %.2f: %v", position, err))
 			return

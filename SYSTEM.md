@@ -164,6 +164,7 @@ EOF
 - Example commands used by the UI:
   - `rpicam-still --nopreview --timeout 1 --lens-position <value> --output <file>`
   - `libcamera-still --nopreview --timeout 1 --lens-position <value> -o <file>`
+- Captures respect current camera configuration settings for sensor mode and flip options.
 - Command stdout/stderr is recorded and displayed in the Focus Assist capture log.
 - Interaction with MediaMTX:
   - If MediaMTX already owns the camera, still capture can fail because libcamera

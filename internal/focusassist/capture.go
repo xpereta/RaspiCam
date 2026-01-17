@@ -33,7 +33,7 @@ func NewCommandCapturer() (Capturer, error) {
 	return nil, errors.New("no capture command found")
 }
 
-func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) (CaptureResult, error) {
+func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64, settings CaptureSettings) (CaptureResult, error) {
 	if c == nil {
 		return CaptureResult{}, errors.New("capturer is nil")
 	}
@@ -56,6 +56,7 @@ func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) (Ca
 		replaced = strings.ReplaceAll(replaced, "{output}", name)
 		args = append(args, replaced)
 	}
+	args = append(args, captureSettingsArgs(settings)...)
 
 	cmd := exec.CommandContext(ctx, c.command, args...)
 	var output bytes.Buffer
@@ -75,4 +76,18 @@ func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) (Ca
 		return CaptureResult{Output: output.String()}, errors.New("empty capture output")
 	}
 	return CaptureResult{Data: data, Output: output.String()}, nil
+}
+
+func captureSettingsArgs(settings CaptureSettings) []string {
+	args := []string{}
+	if settings.VFlip {
+		args = append(args, "--vflip")
+	}
+	if settings.HFlip {
+		args = append(args, "--hflip")
+	}
+	if settings.Mode != "" {
+		args = append(args, "--mode", settings.Mode)
+	}
+	return args
 }

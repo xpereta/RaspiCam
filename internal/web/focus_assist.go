@@ -132,6 +132,12 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cameraCfg, err := config.LoadCameraConfig(s.configPath)
+	if err != nil {
+		http.Redirect(w, r, "/focus-assist?status=load-error", http.StatusSeeOther)
+		return
+	}
+
 	stopMediaMTX := r.FormValue("stop-mtx") == "on"
 	restartAfterScan := false
 	if stopMediaMTX {
@@ -155,6 +161,11 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		End:    end,
 		Step:   step,
 		Region: region,
+		Settings: focusassist.CaptureSettings{
+			Mode:  cameraCfg.Mode,
+			VFlip: cameraCfg.VFlip,
+			HFlip: cameraCfg.HFlip,
+		},
 	})
 	if err != nil {
 		http.Redirect(w, r, "/focus-assist?status=invalid-step", http.StatusSeeOther)
@@ -167,6 +178,11 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		End:    end,
 		Step:   step,
 		Region: region,
+		Settings: focusassist.CaptureSettings{
+			Mode:  cameraCfg.Mode,
+			VFlip: cameraCfg.VFlip,
+			HFlip: cameraCfg.HFlip,
+		},
 	})
 	if err != nil {
 		if restartAfterScan {
