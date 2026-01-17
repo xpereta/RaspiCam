@@ -146,9 +146,19 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	scanCtx, _ := context.WithTimeout(context.Background(), 2*time.Minute)
+	scanTimeout, err := s.focusAssist.ScanTimeout(focusassist.ScanParams{
+		Start:  start,
+		End:    end,
+		Step:   step,
+		Region: region,
+	})
+	if err != nil {
+		http.Redirect(w, r, "/focus-assist?status=invalid-step", http.StatusSeeOther)
+		return
+	}
+	scanCtx, _ := context.WithTimeout(context.Background(), scanTimeout)
 
-	err := s.focusAssist.StartScan(scanCtx, focusassist.ScanParams{
+	err = s.focusAssist.StartScan(scanCtx, focusassist.ScanParams{
 		Start:  start,
 		End:    end,
 		Step:   step,

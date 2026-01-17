@@ -83,6 +83,7 @@ type Service struct {
 	images         map[string]imageSet
 	logs           []LogEntry
 	captureTimeout time.Duration
+	scanOverhead   time.Duration
 	maxSteps       int
 	maxLogs        int
 }
@@ -107,6 +108,7 @@ func NewService(capturer Capturer) *Service {
 		status:         Status{State: StateIdle},
 		images:         make(map[string]imageSet),
 		captureTimeout: 5 * time.Second,
+		scanOverhead:   2 * time.Second,
 		maxSteps:       80,
 		maxLogs:        200,
 	}
@@ -258,6 +260,16 @@ func (s *Service) Image(id string, kind ImageKind) ([]byte, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func (s *Service) ScanTimeout(params ScanParams) (time.Duration, error) {
+	positions, err := buildPositions(params.Start, params.End, params.Step, s.maxSteps)
+	if err != nil {
+		return 0, err
+	}
+	perStep := s.captureTimeout + s.scanOverhead
+	steps := time.Duration(len(positions))
+	return steps*perStep + 10*time.Second, nil
 }
 
 func (s *Service) WaitForCompletion(ctx context.Context) (Status, bool) {

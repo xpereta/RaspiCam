@@ -44,6 +44,28 @@ func TestWaitForCompletion(t *testing.T) {
 	}
 }
 
+func TestScanTimeout(t *testing.T) {
+	service := &Service{
+		captureTimeout: 3 * time.Second,
+		scanOverhead:   time.Second,
+		maxSteps:       10,
+	}
+	timeout, err := service.ScanTimeout(ScanParams{
+		Start:  0,
+		End:    0.2,
+		Step:   0.1,
+		Region: RegionCenter,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := 3*time.Second + time.Second
+	minimum := expected*3 + 10*time.Second
+	if timeout != minimum {
+		t.Fatalf("expected %v, got %v", minimum, timeout)
+	}
+}
+
 func TestBuildPositionsInvalid(t *testing.T) {
 	if _, err := buildPositions(1, 0, 0.1, 10); err == nil {
 		t.Fatalf("expected error for end before start")
