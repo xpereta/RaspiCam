@@ -223,7 +223,7 @@
             <div class="section-title">Preview</div>
             {{ if .Selected }}
             <div class="preview" id="preview-container">
-              <img id="preview-image" src="/focus-assist/image?id={{ .Selected.ID }}&type=full" alt="Selected lens {{ .Selected.LensPosition }}">
+              <img id="preview-image" src="/focus-assist/image?id={{ .Selected.ID }}&type=fullres" alt="Selected lens {{ .Selected.LensPosition }}">
             </div>
             <div class="inline-row" style="margin-top: 10px;">
               <div class="value" id="preview-metric">Lens {{ .Selected.LensPosition }} · Score {{ .Selected.Score }}</div>
@@ -335,7 +335,7 @@
           var lens = thumb.getAttribute("data-lens");
           var score = thumb.getAttribute("data-score");
           if (previewImage) {
-            previewImage.src = "/focus-assist/image?id=" + id + "&type=full";
+            previewImage.src = "/focus-assist/image?id=" + id + "&type=fullres";
             previewImage.alt = "Selected lens " + lens;
           }
           if (previewMetric) {
