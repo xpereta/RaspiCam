@@ -27,6 +27,8 @@ type FocusAssistView struct {
 	MediaMTXStatus   string
 	MediaMTXClass    string
 	MediaMTXActive   bool
+	MediaMTXControl  bool
+	MediaMTXWarning  string
 	Form             FocusAssistFormView
 	Logs             []FocusAssistLogView
 	LogCount         int
@@ -41,6 +43,7 @@ type FocusAssistFormView struct {
 	End             string
 	Step            string
 	StopMediaMTX    bool
+	StopMediaMTXOK  bool
 	RegionTip       string
 	StopMediaMTXTip string
 }
@@ -276,6 +279,8 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 	mediaStatus := "unknown"
 	mediaClass := "badge warn"
 	mediaActive := false
+	mediaControl := true
+	mediaWarning := ""
 	statusCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	if serviceStatus, err := mediamtx.ServiceStatus(statusCtx); err == nil {
 		mediaStatus = serviceStatus
@@ -288,6 +293,12 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		}
 	}
 	cancel()
+	controlCtx, controlCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if ok, warning := s.mediamtxService.CanControl(controlCtx); !ok {
+		mediaControl = false
+		mediaWarning = warning
+	}
+	controlCancel()
 
 	snapshot := s.focusAssist.Snapshot()
 	statusView := buildFocusAssistStatus(snapshot.Status)
@@ -339,6 +350,7 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		End:             "2.0",
 		Step:            "0.1",
 		StopMediaMTX:    mediaActive,
+		StopMediaMTXOK:  mediaControl,
 		RegionTip:       "Center focuses on the middle third of the frame.",
 		StopMediaMTXTip: "Stops MediaMTX during the scan so the camera is released.",
 	}
@@ -362,6 +374,8 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		MediaMTXStatus:   mediaStatus,
 		MediaMTXClass:    mediaClass,
 		MediaMTXActive:   mediaActive,
+		MediaMTXControl:  mediaControl,
+		MediaMTXWarning:  mediaWarning,
 		Form:             form,
 		Logs:             logs,
 		LogCount:         len(logs),

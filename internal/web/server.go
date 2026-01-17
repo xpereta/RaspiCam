@@ -69,6 +69,7 @@ type MediaMTXView struct {
 	PathReadyClass string
 	Message        string
 	MessageClass   string
+	ControlWarning string
 }
 
 type NetworkView struct {
@@ -257,6 +258,10 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass, med
 	device := system.Collect()
 	network, networkWarnings := system.CollectNetwork(ctx)
 	camera, camWarnings := s.loadCameraConfig()
+	controlWarning := ""
+	if ok, warning := s.mediamtxService.CanControl(ctx); !ok {
+		controlWarning = warning
+	}
 	lastUpdated, ok, err := config.ConfigModTime(s.configPath)
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Camera update time unavailable: %v", err))
@@ -271,7 +276,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass, med
 		OSLabel:     device.OSLabel,
 		Metrics:     formatMetrics(snap),
 		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
-		MediaMTX:    formatMediaMTX(mtxStatus, mediamtxMessage, mediamtxMessageClass),
+		MediaMTX:    formatMediaMTX(mtxStatus, mediamtxMessage, mediamtxMessageClass, controlWarning),
 		Network:     formatNetwork(network),
 		Warnings:    append(warnings, append(append(mtxWarnings, camWarnings...), networkWarnings...)...),
 		NavActive:   "status",
@@ -316,7 +321,7 @@ func formatFloat(v float64, decimals int) string {
 	return fmt.Sprintf("%.*f", decimals, v)
 }
 
-func formatMediaMTX(status mediamtx.Status, message, messageClass string) MediaMTXView {
+func formatMediaMTX(status mediamtx.Status, message, messageClass, controlWarning string) MediaMTXView {
 	view := MediaMTXView{
 		ServiceStatus:  status.ServiceStatus,
 		APIStatus:      status.APIStatus,
@@ -330,6 +335,7 @@ func formatMediaMTX(status mediamtx.Status, message, messageClass string) MediaM
 		PathReadyClass: "badge warn",
 		Message:        message,
 		MessageClass:   messageClass,
+		ControlWarning: controlWarning,
 	}
 
 	if status.PathReady != nil {

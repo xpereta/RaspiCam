@@ -239,6 +239,9 @@
               <button class="btn secondary" type="submit">Stop MediaMTX</button>
             </form>
           </div>
+          {{ if .MediaMTX.ControlWarning }}
+          <div class="notice warn" style="margin-top: 10px;">{{ .MediaMTX.ControlWarning }}</div>
+          {{ end }}
           {{ if .MediaMTX.Message }}
           <div class="{{ .MediaMTX.MessageClass }}" style="margin-top: 10px;">{{ .MediaMTX.Message }}</div>
           {{ end }}

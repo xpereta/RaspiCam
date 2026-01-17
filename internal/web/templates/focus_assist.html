@@ -170,7 +170,7 @@
             </div>
             <div>
               <label class="toggle" style="margin-top: 22px;">
-                <input type="checkbox" name="stop-mtx" {{ if .Form.StopMediaMTX }}checked{{ end }}>
+                <input type="checkbox" name="stop-mtx" {{ if .Form.StopMediaMTX }}checked{{ end }} {{ if not .Form.StopMediaMTXOK }}disabled{{ end }}>
                 <span>Stop MediaMTX during scan</span>
               </label>
             </div>
@@ -178,6 +178,9 @@
               <button class="btn" type="submit">Start scan</button>
             </div>
           </form>
+          {{ if and (not .MediaMTXControl) .MediaMTXWarning }}
+          <div class="notice warn" style="margin-top: 10px;">{{ .MediaMTXWarning }}</div>
+          {{ end }}
           {{ if .MediaMTXActive }}
           <div class="notice warn" style="margin-top: 10px;">MediaMTX is active and may block still captures. {{ .Form.StopMediaMTXTip }}</div>
           {{ end }}
