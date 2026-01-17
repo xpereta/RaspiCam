@@ -46,6 +46,8 @@
       .btn.secondary { background: #f0e7d7; color: var(--ink); border: 1px solid var(--line); }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       .inline-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .toggle { display: flex; align-items: center; gap: 8px; }
+      .toggle input { width: 16px; height: 16px; }
       select,
       input[type="number"] { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
@@ -117,6 +119,9 @@
             <div class="label">{{ .Status.FinishedLabel }}</div>
             <div class="value">{{ .Status.FinishedAt }}</div>
             {{ end }}
+
+            <div class="label">MediaMTX service</div>
+            <div class="value"><span class="{{ .MediaMTXClass }}">{{ .MediaMTXStatus }}</span></div>
           </div>
           <div class="inline-row" style="margin-top: 12px;">
             <a class="btn secondary" href="/focus-assist">Refresh status</a>
@@ -163,10 +168,19 @@
               <div class="label">Step</div>
               <input type="number" name="step" step="0.01" value="{{ .Form.Step }}">
             </div>
+            <div>
+              <label class="toggle" style="margin-top: 22px;">
+                <input type="checkbox" name="stop-mtx" {{ if .Form.StopMediaMTX }}checked{{ end }}>
+                <span>Stop MediaMTX during scan</span>
+              </label>
+            </div>
             <div style="align-self: flex-end;">
               <button class="btn" type="submit">Start scan</button>
             </div>
           </form>
+          {{ if .MediaMTXActive }}
+          <div class="notice warn" style="margin-top: 10px;">MediaMTX is active and may block still captures. {{ .Form.StopMediaMTXTip }}</div>
+          {{ end }}
         </div>
       </div>
 

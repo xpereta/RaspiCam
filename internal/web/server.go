@@ -29,6 +29,7 @@ type Server struct {
 	configPath         string
 	focusAssist        *focusassist.Service
 	captureUnavailable string
+	mediamtxService    *system.SystemctlService
 }
 
 type StatusView struct {
@@ -66,6 +67,8 @@ type MediaMTXView struct {
 	ServiceClass   string
 	APIClass       string
 	PathReadyClass string
+	Message        string
+	MessageClass   string
 }
 
 type NetworkView struct {
@@ -110,6 +113,7 @@ func NewServer() (*Server, error) {
 		configPath:         getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
 		focusAssist:        focusassist.NewService(capturer),
 		captureUnavailable: captureUnavailable,
+		mediamtxService:    system.NewSystemctlService("mediamtx"),
 	}, nil
 }
 
@@ -122,6 +126,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/focus-assist/image", s.handleFocusAssistImage)
 	mux.HandleFunc("/focus-assist/apply", s.handleFocusAssistApply)
 	mux.HandleFunc("/focus-assist/auto", s.handleFocusAssistAuto)
+	mux.HandleFunc("/mediamtx/start", s.handleMediaMTXStart)
+	mux.HandleFunc("/mediamtx/stop", s.handleMediaMTXStop)
 	return mux
 }
 
@@ -132,7 +138,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	message, messageClass := cameraMessageFromStatus(r.URL.Query().Get("camera"))
-	view, err := s.buildStatusView(r.Context(), message, messageClass)
+	mediamtxMessage, mediamtxMessageClass := mediamtxMessageFromStatus(r.URL.Query().Get("mediamtx"))
+	view, err := s.buildStatusView(r.Context(), message, messageClass, mediamtxMessage, mediamtxMessageClass)
 	if err != nil {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
@@ -211,7 +218,37 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?camera=saved", http.StatusSeeOther)
 }
 
-func (s *Server) buildStatusView(ctx context.Context, message, messageClass string) (StatusView, error) {
+func (s *Server) handleMediaMTXStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := s.mediamtxService.Start(ctx); err != nil {
+		http.Redirect(w, r, "/?mediamtx=start-error", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/?mediamtx=started", http.StatusSeeOther)
+}
+
+func (s *Server) handleMediaMTXStop(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := s.mediamtxService.Stop(ctx); err != nil {
+		http.Redirect(w, r, "/?mediamtx=stop-error", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/?mediamtx=stopped", http.StatusSeeOther)
+}
+
+func (s *Server) buildStatusView(ctx context.Context, message, messageClass, mediamtxMessage, mediamtxMessageClass string) (StatusView, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -234,7 +271,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 		OSLabel:     device.OSLabel,
 		Metrics:     formatMetrics(snap),
 		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
-		MediaMTX:    formatMediaMTX(mtxStatus),
+		MediaMTX:    formatMediaMTX(mtxStatus, mediamtxMessage, mediamtxMessageClass),
 		Network:     formatNetwork(network),
 		Warnings:    append(warnings, append(append(mtxWarnings, camWarnings...), networkWarnings...)...),
 		NavActive:   "status",
@@ -279,7 +316,7 @@ func formatFloat(v float64, decimals int) string {
 	return fmt.Sprintf("%.*f", decimals, v)
 }
 
-func formatMediaMTX(status mediamtx.Status) MediaMTXView {
+func formatMediaMTX(status mediamtx.Status, message, messageClass string) MediaMTXView {
 	view := MediaMTXView{
 		ServiceStatus:  status.ServiceStatus,
 		APIStatus:      status.APIStatus,
@@ -291,6 +328,8 @@ func formatMediaMTX(status mediamtx.Status) MediaMTXView {
 		ServiceClass:   "badge warn",
 		APIClass:       "badge warn",
 		PathReadyClass: "badge warn",
+		Message:        message,
+		MessageClass:   messageClass,
 	}
 
 	if status.PathReady != nil {
@@ -491,6 +530,21 @@ func cameraMessageFromStatus(status string) (string, string) {
 		return "Invalid focus mode selection.", "notice err"
 	case "invalid-lens-position":
 		return "Invalid lens position selection.", "notice err"
+	default:
+		return "", ""
+	}
+}
+
+func mediamtxMessageFromStatus(status string) (string, string) {
+	switch status {
+	case "started":
+		return "MediaMTX service started.", "notice ok"
+	case "stopped":
+		return "MediaMTX service stopped.", "notice ok"
+	case "start-error":
+		return "Failed to start MediaMTX service.", "notice err"
+	case "stop-error":
+		return "Failed to stop MediaMTX service.", "notice err"
 	default:
 		return "", ""
 	}

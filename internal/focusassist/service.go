@@ -260,6 +260,23 @@ func (s *Service) Image(id string, kind ImageKind) ([]byte, bool) {
 	}
 }
 
+func (s *Service) WaitForCompletion(ctx context.Context) (Status, bool) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		snapshot := s.Snapshot()
+		if snapshot.Status.State != StateRunning {
+			return snapshot.Status, true
+		}
+		select {
+		case <-ctx.Done():
+			return snapshot.Status, false
+		case <-ticker.C:
+		}
+	}
+}
+
 func (s *Service) updateStatus(fn func(*Status)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

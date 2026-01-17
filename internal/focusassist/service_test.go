@@ -1,6 +1,10 @@
 package focusassist
 
-import "testing"
+import (
+	"context"
+	"testing"
+	"time"
+)
 
 func TestBuildPositions(t *testing.T) {
 	positions, err := buildPositions(0, 0.3, 0.1, 10)
@@ -12,6 +16,31 @@ func TestBuildPositions(t *testing.T) {
 	}
 	if !floatEquals(positions[0], 0, 0.0001) || !floatEquals(positions[3], 0.3, 0.0001) {
 		t.Fatalf("unexpected positions: %v", positions)
+	}
+}
+
+func TestWaitForCompletion(t *testing.T) {
+	service := &Service{
+		status: Status{State: StateRunning},
+	}
+	done := make(chan struct{})
+	go func() {
+		service.updateStatus(func(status *Status) {
+			status.State = StateDone
+		})
+		close(done)
+	}()
+	<-done
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	status, ok := service.WaitForCompletion(ctx)
+	if !ok {
+		t.Fatalf("expected wait to succeed")
+	}
+	if status.State != StateDone {
+		t.Fatalf("expected done state, got %s", status.State)
 	}
 }
 

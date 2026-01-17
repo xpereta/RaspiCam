@@ -231,6 +231,17 @@
             <div class="label">Tracks</div>
             <div class="value">{{ .MediaMTX.Tracks }}</div>
           </div>
+          <div class="inline-row" style="margin-top: 12px;">
+            <form method="POST" action="/mediamtx/start">
+              <button class="btn secondary" type="submit">Start MediaMTX</button>
+            </form>
+            <form method="POST" action="/mediamtx/stop">
+              <button class="btn secondary" type="submit">Stop MediaMTX</button>
+            </form>
+          </div>
+          {{ if .MediaMTX.Message }}
+          <div class="{{ .MediaMTX.MessageClass }}" style="margin-top: 10px;">{{ .MediaMTX.Message }}</div>
+          {{ end }}
         </div>
       </div>
 

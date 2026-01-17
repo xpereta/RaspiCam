@@ -10,6 +10,7 @@ import (
 
 	"github.com/xpereta/RaspiCam/internal/config"
 	"github.com/xpereta/RaspiCam/internal/focusassist"
+	"github.com/xpereta/RaspiCam/internal/mediamtx"
 )
 
 type FocusAssistView struct {
@@ -23,6 +24,9 @@ type FocusAssistView struct {
 	MessageClass     string
 	CaptureStatus    string
 	CameraAfMode     string
+	MediaMTXStatus   string
+	MediaMTXClass    string
+	MediaMTXActive   bool
 	Form             FocusAssistFormView
 	Logs             []FocusAssistLogView
 	LogCount         int
@@ -32,11 +36,13 @@ type FocusAssistView struct {
 }
 
 type FocusAssistFormView struct {
-	Region    string
-	Start     string
-	End       string
-	Step      string
-	RegionTip string
+	Region          string
+	Start           string
+	End             string
+	Step            string
+	StopMediaMTX    bool
+	RegionTip       string
+	StopMediaMTXTip string
 }
 
 type FocusAssistStatusView struct {
@@ -119,6 +125,24 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stopMediaMTX := r.FormValue("stop-mtx") == "on"
+	restartAfterScan := false
+	if stopMediaMTX {
+		statusCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		serviceStatus, err := mediamtx.ServiceStatus(statusCtx)
+		cancel()
+		if err == nil && serviceStatus == "active" {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			stopErr := s.mediamtxService.Stop(stopCtx)
+			stopCancel()
+			if stopErr != nil {
+				http.Redirect(w, r, "/focus-assist?status=mediamtx-stop-error", http.StatusSeeOther)
+				return
+			}
+			restartAfterScan = true
+		}
+	}
+
 	scanCtx, _ := context.WithTimeout(context.Background(), 2*time.Minute)
 
 	err := s.focusAssist.StartScan(scanCtx, focusassist.ScanParams{
@@ -128,6 +152,9 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		Region: region,
 	})
 	if err != nil {
+		if restartAfterScan {
+			s.startMediaMTXAsync()
+		}
 		switch err {
 		case focusassist.ErrScanRunning:
 			http.Redirect(w, r, "/focus-assist?status=scan-running", http.StatusSeeOther)
@@ -139,6 +166,10 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/focus-assist?status=scan-error", http.StatusSeeOther)
 			return
 		}
+	}
+
+	if restartAfterScan {
+		go s.restoreMediaMTXAfterScan()
 	}
 
 	http.Redirect(w, r, "/focus-assist?status=scan-started", http.StatusSeeOther)
@@ -242,6 +273,22 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		messageClass = "notice warn"
 	}
 
+	mediaStatus := "unknown"
+	mediaClass := "badge warn"
+	mediaActive := false
+	statusCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if serviceStatus, err := mediamtx.ServiceStatus(statusCtx); err == nil {
+		mediaStatus = serviceStatus
+		if serviceStatus == "active" {
+			mediaClass = "badge ok"
+			mediaActive = true
+		}
+		if serviceStatus == "failed" {
+			mediaClass = "badge err"
+		}
+	}
+	cancel()
+
 	snapshot := s.focusAssist.Snapshot()
 	statusView := buildFocusAssistStatus(snapshot.Status)
 	results := make([]FocusAssistResultView, 0, len(snapshot.Results))
@@ -287,11 +334,13 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 	}
 
 	form := FocusAssistFormView{
-		Region:    string(focusassist.RegionCenter),
-		Start:     "0.0",
-		End:       "2.0",
-		Step:      "0.1",
-		RegionTip: "Center focuses on the middle third of the frame.",
+		Region:          string(focusassist.RegionCenter),
+		Start:           "0.0",
+		End:             "2.0",
+		Step:            "0.1",
+		StopMediaMTX:    mediaActive,
+		RegionTip:       "Center focuses on the middle third of the frame.",
+		StopMediaMTXTip: "Stops MediaMTX during the scan so the camera is released.",
 	}
 
 	captureStatus := ""
@@ -310,6 +359,9 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		MessageClass:     messageClass,
 		CaptureStatus:    captureStatus,
 		CameraAfMode:     cameraAfMode,
+		MediaMTXStatus:   mediaStatus,
+		MediaMTXClass:    mediaClass,
+		MediaMTXActive:   mediaActive,
 		Form:             form,
 		Logs:             logs,
 		LogCount:         len(logs),
@@ -412,6 +464,8 @@ func focusAssistMessageFromStatus(status string) (string, string) {
 		return "Autofocus restored to continuous mode.", "notice ok"
 	case "invalid-lens-position":
 		return "Invalid lens position value.", "notice err"
+	case "mediamtx-stop-error":
+		return "Failed to stop MediaMTX. Check permissions and try again.", "notice err"
 	case "save-error":
 		return "Failed to save camera configuration.", "notice err"
 	case "load-error":
@@ -419,6 +473,22 @@ func focusAssistMessageFromStatus(status string) (string, string) {
 	default:
 		return "", ""
 	}
+}
+
+func (s *Server) restoreMediaMTXAfterScan() {
+	waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	status, ok := s.focusAssist.WaitForCompletion(waitCtx)
+	if !ok || status.State == focusassist.StateRunning {
+		return
+	}
+	s.startMediaMTXAsync()
+}
+
+func (s *Server) startMediaMTXAsync() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = s.mediamtxService.Start(ctx)
 }
 
 func isValidRegion(region focusassist.Region) bool {

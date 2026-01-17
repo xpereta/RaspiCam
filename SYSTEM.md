@@ -143,6 +143,7 @@ EOF
 - Status cards: system metrics, MediaMTX state, device info, network stats.
 - Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`, set resolution, AWB, and sensor mode.
 - Last update time uses `mediamtx.yml` modification time.
+- MediaMTX service control: start/stop buttons in the Status page.
 - Focus assist (planned): help select `rpiCameraLensPosition` by scoring sharpness in a
   user-selected region and recommending the best lens position. The UI includes a
   thumbnail gallery so users can inspect captured frames and choose a lens position
@@ -153,6 +154,7 @@ EOF
   - Focus Assist is reachable directly from the primary nav and via Camera Config.
   - Long-running actions surface progress/status in the UI, with auto-refresh during scans.
   - Capture logs from focus assist commands are available in the UI.
+  - Optional: stop MediaMTX during scans to release the camera, then restart after completion.
 
 ## Focus Assist Capture Mechanism
 - The UI uses still capture commands to grab frames for sharpness scoring.
@@ -166,8 +168,19 @@ EOF
 - Interaction with MediaMTX:
   - If MediaMTX already owns the camera, still capture can fail because libcamera
     generally allows a single active client. Run focus assist when the stream is
-    stopped, or plan a future integration that taps frames from the MediaMTX
+    stopped (the Focus Assist UI can stop/start the service), or plan a future integration that taps frames from the MediaMTX
     pipeline instead of launching a separate still command.
+
+## MediaMTX Service Control
+- The web UI can start/stop MediaMTX using `systemctl start/stop mediamtx`.
+- This requires the UI process to have permission to control the service. Options:
+  - Run the UI service as root (simple but broad privileges).
+  - Add a sudoers rule to allow only MediaMTX control without a password, for example:
+    - `/etc/sudoers.d/raspicam-mediamtx`:
+      - `raspicam ALL=(root) NOPASSWD: /bin/systemctl start mediamtx, /bin/systemctl stop mediamtx`
+    - Update the UI service to invoke `systemctl` via sudo if needed.
+  - Use a polkit rule to allow `systemctl start/stop mediamtx` for the UI user.
+- Restrict access to the UI (auth, firewall) when enabling service control, since it can impact streaming availability.
 
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
