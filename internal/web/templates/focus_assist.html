@@ -76,10 +76,12 @@
       .thumb img { display: block; width: 100%; height: auto; }
       .thumb .meta { padding: 6px; font-size: 12px; color: var(--muted); }
       .thumb.best { border-color: #2f6f4e; box-shadow: 0 0 0 2px rgba(47,111,78,0.2); }
-      .preview { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fff; }
-      .preview img { width: 100%; height: auto; display: block; }
+      .preview { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fff; overflow: auto; max-height: 520px; }
+      .preview img { width: 100%; height: auto; display: block; transform-origin: center; }
       .preview-meta { margin-top: 8px; font-size: 13px; color: var(--muted); }
       .preview-nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+      .zoom-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+      .zoom-range { width: 160px; }
       @media (max-width: 640px) {
         .grid { grid-template-columns: 1fr; }
       }
@@ -205,7 +207,13 @@
           </div>
           <div class="thumbs">
             {{ range .Results }}
-            <a class="thumb {{ if .IsBest }}best{{ end }}" href="/focus-assist?select={{ .ID }}">
+            <a
+              class="thumb {{ if .IsBest }}best{{ end }}{{ if and $.Selected (eq .ID $.Selected.ID) }} selected{{ end }}"
+              href="/focus-assist?select={{ .ID }}"
+              data-id="{{ .ID }}"
+              data-lens="{{ .LensPosition }}"
+              data-score="{{ .Score }}"
+            >
               <img src="/focus-assist/image?id={{ .ID }}&type=thumb" alt="Lens {{ .LensPosition }}">
               <div class="meta">Lens {{ .LensPosition }} · {{ .Score }}</div>
             </a>
@@ -214,24 +222,29 @@
           <div class="section" style="margin-top: 16px;">
             <div class="section-title">Preview</div>
             {{ if .Selected }}
-            <div class="preview">
-              <img src="/focus-assist/image?id={{ .Selected.ID }}&type=full" alt="Selected lens {{ .Selected.LensPosition }}">
+            <div class="preview" id="preview-container">
+              <img id="preview-image" src="/focus-assist/image?id={{ .Selected.ID }}&type=full" alt="Selected lens {{ .Selected.LensPosition }}">
             </div>
             <div class="inline-row" style="margin-top: 10px;">
-              <div class="value">Lens {{ .Selected.LensPosition }} · Score {{ .Selected.Score }}</div>
-              <a class="btn secondary" href="/focus-assist/image?id={{ .Selected.ID }}&type=fullres" target="_blank" rel="noopener">View full resolution</a>
+              <div class="value" id="preview-metric">Lens {{ .Selected.LensPosition }} · Score {{ .Selected.Score }}</div>
+              <a class="btn secondary" id="preview-fullres" href="/focus-assist/image?id={{ .Selected.ID }}&type=fullres" target="_blank" rel="noopener">View full resolution</a>
               <form method="POST" action="/focus-assist/apply">
-                <input type="hidden" name="lens" value="{{ .Selected.LensPosition }}">
+                <input id="preview-apply-lens" type="hidden" name="lens" value="{{ .Selected.LensPosition }}">
                 <button class="btn" type="submit">Apply selected</button>
               </form>
             </div>
-            <div class="preview-meta">Image {{ .SelectedIndex }} of {{ .SelectedTotal }}</div>
+            <div class="zoom-controls">
+              <div class="label">Zoom</div>
+              <input class="zoom-range" id="preview-zoom" type="range" min="1" max="3" step="0.25" value="1">
+              <div class="label" id="preview-zoom-value">1x</div>
+            </div>
+            <div class="preview-meta" id="preview-index">Image {{ .SelectedIndex }} of {{ .SelectedTotal }}</div>
             <div class="preview-nav">
               {{ if .SelectedPrevID }}
-              <a class="btn secondary" href="/focus-assist?select={{ .SelectedPrevID }}">Previous</a>
+              <a class="btn secondary" data-nav="prev" href="/focus-assist?select={{ .SelectedPrevID }}">Previous</a>
               {{ end }}
               {{ if .SelectedNextID }}
-              <a class="btn secondary" href="/focus-assist?select={{ .SelectedNextID }}">Next</a>
+              <a class="btn secondary" data-nav="next" href="/focus-assist?select={{ .SelectedNextID }}">Next</a>
               {{ end }}
               <div class="label">Use left/right arrow keys to navigate.</div>
             </div>
@@ -281,16 +294,109 @@
     {{ if .Selected }}
     <script>
       (function () {
-        var prev = {{ if .SelectedPrevID }}"{{ .SelectedPrevID }}"{{ else }}""{{ end }};
-        var next = {{ if .SelectedNextID }}"{{ .SelectedNextID }}"{{ else }}""{{ end }};
-        document.addEventListener("keydown", function (event) {
-          if (event.key === "ArrowLeft" && prev) {
-            window.location.href = "/focus-assist?select=" + prev;
+        var thumbs = Array.prototype.slice.call(document.querySelectorAll(".thumb[data-id]"));
+        if (!thumbs.length) {
+          return;
+        }
+        var previewImage = document.getElementById("preview-image");
+        var previewMetric = document.getElementById("preview-metric");
+        var previewIndex = document.getElementById("preview-index");
+        var previewFullRes = document.getElementById("preview-fullres");
+        var previewApplyLens = document.getElementById("preview-apply-lens");
+        var previewZoom = document.getElementById("preview-zoom");
+        var previewZoomValue = document.getElementById("preview-zoom-value");
+
+        function applyZoom(value) {
+          if (!previewImage || !previewZoomValue) {
+            return;
           }
-          if (event.key === "ArrowRight" && next) {
-            window.location.href = "/focus-assist?select=" + next;
+          previewImage.style.transform = "scale(" + value + ")";
+          previewZoomValue.textContent = value + "x";
+        }
+
+        function currentIndex() {
+          var selected = document.querySelector(".thumb.selected");
+          if (!selected) {
+            return 0;
+          }
+          return thumbs.indexOf(selected);
+        }
+
+        function selectIndex(index) {
+          if (index < 0 || index >= thumbs.length) {
+            return;
+          }
+          thumbs.forEach(function (thumb) {
+            thumb.classList.remove("selected");
+          });
+          var thumb = thumbs[index];
+          thumb.classList.add("selected");
+          var id = thumb.getAttribute("data-id");
+          var lens = thumb.getAttribute("data-lens");
+          var score = thumb.getAttribute("data-score");
+          if (previewImage) {
+            previewImage.src = "/focus-assist/image?id=" + id + "&type=full";
+            previewImage.alt = "Selected lens " + lens;
+          }
+          if (previewMetric) {
+            previewMetric.textContent = "Lens " + lens + " \u00b7 Score " + score;
+          }
+          if (previewIndex) {
+            previewIndex.textContent = "Image " + (index + 1) + " of " + thumbs.length;
+          }
+          if (previewFullRes) {
+            previewFullRes.href = "/focus-assist/image?id=" + id + "&type=fullres";
+          }
+          if (previewApplyLens) {
+            previewApplyLens.value = lens;
+          }
+          var params = new URLSearchParams(window.location.search);
+          params.set("select", id);
+          var nextURL = window.location.pathname + "?" + params.toString();
+          window.history.replaceState({}, "", nextURL);
+        }
+
+        var initialIndex = currentIndex();
+        if (initialIndex >= 0) {
+          selectIndex(initialIndex);
+        }
+
+        thumbs.forEach(function (thumb, index) {
+          thumb.addEventListener("click", function (event) {
+            event.preventDefault();
+            selectIndex(index);
+          });
+        });
+
+        document.addEventListener("keydown", function (event) {
+          var index = currentIndex();
+          if (event.key === "ArrowLeft") {
+            selectIndex(index - 1);
+          }
+          if (event.key === "ArrowRight") {
+            selectIndex(index + 1);
           }
         });
+
+        var navButtons = document.querySelectorAll("[data-nav]");
+        navButtons.forEach(function (button) {
+          button.addEventListener("click", function (event) {
+            event.preventDefault();
+            var index = currentIndex();
+            if (button.getAttribute("data-nav") === "prev") {
+              selectIndex(index - 1);
+            } else {
+              selectIndex(index + 1);
+            }
+          });
+        });
+
+        if (previewZoom) {
+          previewZoom.addEventListener("input", function () {
+            applyZoom(previewZoom.value);
+          });
+          applyZoom(previewZoom.value);
+        }
       })();
     </script>
     {{ end }}
