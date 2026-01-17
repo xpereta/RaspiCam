@@ -78,6 +78,8 @@
       .thumb.best { border-color: #2f6f4e; box-shadow: 0 0 0 2px rgba(47,111,78,0.2); }
       .preview { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fff; }
       .preview img { width: 100%; height: auto; display: block; }
+      .preview-meta { margin-top: 8px; font-size: 13px; color: var(--muted); }
+      .preview-nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
       @media (max-width: 640px) {
         .grid { grid-template-columns: 1fr; }
       }
@@ -223,6 +225,16 @@
                 <button class="btn" type="submit">Apply selected</button>
               </form>
             </div>
+            <div class="preview-meta">Image {{ .SelectedIndex }} of {{ .SelectedTotal }}</div>
+            <div class="preview-nav">
+              {{ if .SelectedPrevID }}
+              <a class="btn secondary" href="/focus-assist?select={{ .SelectedPrevID }}">Previous</a>
+              {{ end }}
+              {{ if .SelectedNextID }}
+              <a class="btn secondary" href="/focus-assist?select={{ .SelectedNextID }}">Next</a>
+              {{ end }}
+              <div class="label">Use left/right arrow keys to navigate.</div>
+            </div>
             {{ else }}
             <div class="notice warn">Select a thumbnail to preview and apply.</div>
             {{ end }}
@@ -266,5 +278,21 @@
         </div>
       </div>
     </div>
+    {{ if .Selected }}
+    <script>
+      (function () {
+        var prev = {{ if .SelectedPrevID }}"{{ .SelectedPrevID }}"{{ else }}""{{ end }};
+        var next = {{ if .SelectedNextID }}"{{ .SelectedNextID }}"{{ else }}""{{ end }};
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "ArrowLeft" && prev) {
+            window.location.href = "/focus-assist?select=" + prev;
+          }
+          if (event.key === "ArrowRight" && next) {
+            window.location.href = "/focus-assist?select=" + next;
+          }
+        });
+      })();
+    </script>
+    {{ end }}
   </body>
 </html>

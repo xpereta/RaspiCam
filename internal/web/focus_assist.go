@@ -20,6 +20,8 @@ type FocusAssistView struct {
 	Results          []FocusAssistResultView
 	Best             *FocusAssistResultView
 	Selected         *FocusAssistResultView
+	SelectedIndex    int
+	SelectedTotal    int
 	Message          string
 	MessageClass     string
 	CaptureStatus    string
@@ -35,6 +37,8 @@ type FocusAssistView struct {
 	HasResults       bool
 	ApplyDisabled    bool
 	SelectedDisabled bool
+	SelectedPrevID   string
+	SelectedNextID   string
 }
 
 type FocusAssistFormView struct {
@@ -316,6 +320,10 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 	logs := make([]FocusAssistLogView, 0, len(snapshot.Logs))
 	var best *FocusAssistResultView
 	var selected *FocusAssistResultView
+	selectedIndex := 0
+	selectedTotal := len(snapshot.Results)
+	selectedPrev := ""
+	selectedNext := ""
 
 	for _, result := range snapshot.Results {
 		view := FocusAssistResultView{
@@ -331,6 +339,20 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 			selected = &view
 		}
 		results = append(results, view)
+	}
+	if selectedID != "" && selected != nil {
+		for i, result := range results {
+			if result.ID == selectedID {
+				selectedIndex = i + 1
+				if i > 0 {
+					selectedPrev = results[i-1].ID
+				}
+				if i+1 < len(results) {
+					selectedNext = results[i+1].ID
+				}
+				break
+			}
+		}
 	}
 	for i := len(snapshot.Logs) - 1; i >= 0; i-- {
 		entry := snapshot.Logs[i]
@@ -377,6 +399,8 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		Results:          results,
 		Best:             best,
 		Selected:         selected,
+		SelectedIndex:    selectedIndex,
+		SelectedTotal:    selectedTotal,
 		Message:          message,
 		MessageClass:     messageClass,
 		CaptureStatus:    captureStatus,
@@ -392,6 +416,8 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		HasResults:       len(results) > 0,
 		ApplyDisabled:    best == nil,
 		SelectedDisabled: selected == nil,
+		SelectedPrevID:   selectedPrev,
+		SelectedNextID:   selectedNext,
 	}
 	return view, nil
 }
