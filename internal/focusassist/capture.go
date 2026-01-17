@@ -1,6 +1,7 @@
 package focusassist
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -32,17 +33,17 @@ func NewCommandCapturer() (Capturer, error) {
 	return nil, errors.New("no capture command found")
 }
 
-func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) ([]byte, error) {
+func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) (CaptureResult, error) {
 	if c == nil {
-		return nil, errors.New("capturer is nil")
+		return CaptureResult{}, errors.New("capturer is nil")
 	}
 	if c.command == "" {
-		return nil, errors.New("capture command not set")
+		return CaptureResult{}, errors.New("capture command not set")
 	}
 
 	path, err := os.CreateTemp("", "focus-assist-*.jpg")
 	if err != nil {
-		return nil, fmt.Errorf("create temp file: %w", err)
+		return CaptureResult{}, fmt.Errorf("create temp file: %w", err)
 	}
 	name := path.Name()
 	_ = path.Close()
@@ -57,20 +58,21 @@ func (c *CommandCapturer) Capture(ctx context.Context, lensPosition float64) ([]
 	}
 
 	cmd := exec.CommandContext(ctx, c.command, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("capture command failed after %s: %w", time.Since(start), err)
+		return CaptureResult{Output: output.String()}, fmt.Errorf("capture command failed after %s: %w", time.Since(start), err)
 	}
 
 	data, err := os.ReadFile(name)
 	if err != nil {
-		return nil, fmt.Errorf("read capture output: %w", err)
+		return CaptureResult{Output: output.String()}, fmt.Errorf("read capture output: %w", err)
 	}
 	if len(data) == 0 {
-		return nil, errors.New("empty capture output")
+		return CaptureResult{Output: output.String()}, errors.New("empty capture output")
 	}
-	return data, nil
+	return CaptureResult{Data: data, Output: output.String()}, nil
 }

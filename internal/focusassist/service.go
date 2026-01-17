@@ -26,7 +26,7 @@ var (
 )
 
 type Capturer interface {
-	Capture(ctx context.Context, lensPosition float64) ([]byte, error)
+	Capture(ctx context.Context, lensPosition float64) (CaptureResult, error)
 }
 
 type Status struct {
@@ -46,11 +46,17 @@ type Result struct {
 	Score        float64
 }
 
+type CaptureResult struct {
+	Data   []byte
+	Output string
+}
+
 type Snapshot struct {
 	Status    Status
 	Results   []Result
 	BestID    string
 	UpdatedAt time.Time
+	Logs      []LogEntry
 }
 
 type ImageKind string
@@ -74,13 +80,23 @@ type Service struct {
 	results        []Result
 	bestID         string
 	images         map[string]imageSet
+	logs           []LogEntry
 	captureTimeout time.Duration
 	maxSteps       int
+	maxLogs        int
 }
 
 type imageSet struct {
 	full  []byte
 	thumb []byte
+}
+
+type LogEntry struct {
+	Time         time.Time
+	LensPosition float64
+	Output       string
+	Success      bool
+	Error        string
 }
 
 func NewService(capturer Capturer) *Service {
@@ -90,6 +106,7 @@ func NewService(capturer Capturer) *Service {
 		images:         make(map[string]imageSet),
 		captureTimeout: 5 * time.Second,
 		maxSteps:       80,
+		maxLogs:        200,
 	}
 }
 
@@ -118,6 +135,7 @@ func (s *Service) StartScan(ctx context.Context, params ScanParams) error {
 	s.results = nil
 	s.bestID = ""
 	s.images = make(map[string]imageSet)
+	s.logs = nil
 	s.mu.Unlock()
 
 	go s.runScan(ctx, params.Region, positions)
@@ -133,14 +151,28 @@ func (s *Service) runScan(ctx context.Context, region Region, positions []float6
 		})
 
 		stepCtx, cancel := context.WithTimeout(ctx, s.captureTimeout)
-		data, err := s.capturer.Capture(stepCtx, position)
+		result, err := s.capturer.Capture(stepCtx, position)
 		cancel()
 		if err != nil {
+			s.appendLog(LogEntry{
+				Time:         time.Now(),
+				LensPosition: position,
+				Output:       result.Output,
+				Success:      false,
+				Error:        err.Error(),
+			})
 			s.failScan(fmt.Sprintf("capture failed at %.2f: %v", position, err))
 			return
 		}
 
-		img, err := decodeImage(data)
+		s.appendLog(LogEntry{
+			Time:         time.Now(),
+			LensPosition: position,
+			Output:       result.Output,
+			Success:      true,
+		})
+
+		img, err := decodeImage(result.Data)
 		if err != nil {
 			s.failScan(fmt.Sprintf("decode failed at %.2f: %v", position, err))
 			return
@@ -201,6 +233,7 @@ func (s *Service) Snapshot() Snapshot {
 		Results:   results,
 		BestID:    s.bestID,
 		UpdatedAt: status.UpdatedAt,
+		Logs:      cloneLogs(s.logs),
 	}
 }
 
@@ -236,6 +269,16 @@ func (s *Service) failScan(message string) {
 		status.FinishedAt = time.Now()
 		status.UpdatedAt = time.Now()
 	})
+}
+
+func (s *Service) appendLog(entry LogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logs = append(s.logs, entry)
+	if s.maxLogs > 0 && len(s.logs) > s.maxLogs {
+		start := len(s.logs) - s.maxLogs
+		s.logs = append([]LogEntry(nil), s.logs[start:]...)
+	}
 }
 
 func (s *Service) bestScoreLocked() float64 {
@@ -290,4 +333,13 @@ func encodeJPEG(img image.Image) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func cloneLogs(logs []LogEntry) []LogEntry {
+	if len(logs) == 0 {
+		return nil
+	}
+	copied := make([]LogEntry, len(logs))
+	copy(copied, logs)
+	return copied
 }

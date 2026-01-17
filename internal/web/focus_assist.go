@@ -24,6 +24,7 @@ type FocusAssistView struct {
 	CaptureStatus    string
 	CameraAfMode     string
 	Form             FocusAssistFormView
+	Logs             []FocusAssistLogView
 	HasResults       bool
 	ApplyDisabled    bool
 	SelectedDisabled bool
@@ -55,6 +56,13 @@ type FocusAssistResultView struct {
 	LensPosition string
 	Score        string
 	IsBest       bool
+}
+
+type FocusAssistLogView struct {
+	Time         string
+	LensPosition string
+	Status       string
+	Output       string
 }
 
 func (s *Server) handleFocusAssist(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +115,7 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scanCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	scanCtx, _ := context.WithTimeout(context.Background(), 2*time.Minute)
 
 	err := s.focusAssist.StartScan(scanCtx, focusassist.ScanParams{
 		Start:  start,
@@ -231,6 +238,7 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 	snapshot := s.focusAssist.Snapshot()
 	statusView := buildFocusAssistStatus(snapshot.Status)
 	results := make([]FocusAssistResultView, 0, len(snapshot.Results))
+	logs := make([]FocusAssistLogView, 0, len(snapshot.Logs))
 	var best *FocusAssistResultView
 	var selected *FocusAssistResultView
 
@@ -248,6 +256,27 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 			selected = &view
 		}
 		results = append(results, view)
+	}
+	for i := len(snapshot.Logs) - 1; i >= 0; i-- {
+		entry := snapshot.Logs[i]
+		status := "ok"
+		if !entry.Success {
+			status = "error"
+		}
+		output := strings.TrimSpace(entry.Output)
+		if entry.Error != "" {
+			if output != "" {
+				output = output + "\n" + entry.Error
+			} else {
+				output = entry.Error
+			}
+		}
+		logs = append(logs, FocusAssistLogView{
+			Time:         entry.Time.Format("15:04:05"),
+			LensPosition: formatFloat(entry.LensPosition, 2),
+			Status:       status,
+			Output:       output,
+		})
 	}
 
 	form := FocusAssistFormView{
@@ -275,6 +304,7 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		CaptureStatus:    captureStatus,
 		CameraAfMode:     cameraAfMode,
 		Form:             form,
+		Logs:             logs,
 		HasResults:       len(results) > 0,
 		ApplyDisabled:    best == nil,
 		SelectedDisabled: selected == nil,

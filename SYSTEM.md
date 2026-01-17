@@ -151,6 +151,22 @@ EOF
   - Navigation: Status | Camera Config | Focus Assist.
   - Focus Assist is reachable directly from the primary nav and via Camera Config.
   - Long-running actions surface progress/status in the UI.
+  - Capture logs from focus assist commands are visible in the UI.
+
+## Focus Assist Capture Mechanism
+- The UI uses still capture commands to grab frames for sharpness scoring.
+- The capture command is detected in this order:
+  - `rpicam-still`
+  - `libcamera-still`
+- Example commands used by the UI:
+  - `rpicam-still --nopreview --timeout 1 --lens-position <value> --output <file>`
+  - `libcamera-still --nopreview --timeout 1 --lens-position <value> -o <file>`
+- Command stdout/stderr is recorded and displayed in the Focus Assist capture log.
+- Interaction with MediaMTX:
+  - If MediaMTX already owns the camera, still capture can fail because libcamera
+    generally allows a single active client. Run focus assist when the stream is
+    stopped, or plan a future integration that taps frames from the MediaMTX
+    pipeline instead of launching a separate still command.
 
 ## Configuration Scope (TBD)
 - MediaMTX stream settings (bitrate, resolution, codec settings).
