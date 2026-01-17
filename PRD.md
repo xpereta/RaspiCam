@@ -116,7 +116,9 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
 - All focus assist actions (preview, capture, inspect, apply) must be available in
   the web UI.
 - Any long-running actions (scan, capture, apply) must show progress and status
-  so the user knows the operation is still running.
+  so the user knows the operation is still running, including auto-refresh during scans.
+- Provide a full-resolution view of captured stills so users can inspect fine detail.
+- Capture logs should be available on demand without overwhelming the page by default.
 - Feasibility notes:
   - Real-time scoring is only feasible if the Pi camera stack exposes a low-latency
     frame source plus per-frame focus metadata or supports quick successive snapshots.

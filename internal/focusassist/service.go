@@ -62,8 +62,9 @@ type Snapshot struct {
 type ImageKind string
 
 const (
-	ImageThumb ImageKind = "thumb"
-	ImageFull  ImageKind = "full"
+	ImageThumb   ImageKind = "thumb"
+	ImageFull    ImageKind = "full"
+	ImageFullRes ImageKind = "fullres"
 )
 
 type ScanParams struct {
@@ -87,8 +88,9 @@ type Service struct {
 }
 
 type imageSet struct {
-	full  []byte
-	thumb []byte
+	full     []byte
+	thumb    []byte
+	original []byte
 }
 
 type LogEntry struct {
@@ -202,7 +204,7 @@ func (s *Service) runScan(ctx context.Context, region Region, positions []float6
 
 		s.mu.Lock()
 		s.results = append(s.results, Result{ID: id, LensPosition: position, Score: score})
-		s.images[id] = imageSet{full: fullBytes, thumb: thumbBytes}
+		s.images[id] = imageSet{full: fullBytes, thumb: thumbBytes, original: result.Data}
 		if s.bestID == "" || score > s.bestScoreLocked() {
 			s.bestID = id
 		}
@@ -251,6 +253,8 @@ func (s *Service) Image(id string, kind ImageKind) ([]byte, bool) {
 		return img.full, true
 	case ImageThumb:
 		return img.thumb, true
+	case ImageFullRes:
+		return img.original, true
 	default:
 		return nil, false
 	}

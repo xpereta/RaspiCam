@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{ if .Status.Running }}
+    <meta http-equiv="refresh" content="3">
+    {{ end }}
     <title>RaspiCam Focus Assist</title>
     <style>
       :root {
@@ -109,6 +112,11 @@
 
             <div class="label">Last update</div>
             <div class="value">{{ if .Status.UpdatedAt }}{{ .Status.UpdatedAt }}{{ else }}-{{ end }}</div>
+
+            {{ if .Status.FinishedAt }}
+            <div class="label">{{ .Status.FinishedLabel }}</div>
+            <div class="value">{{ .Status.FinishedAt }}</div>
+            {{ end }}
           </div>
           <div class="inline-row" style="margin-top: 12px;">
             <a class="btn secondary" href="/focus-assist">Refresh status</a>
@@ -117,7 +125,10 @@
             </form>
           </div>
           {{ if .Status.Message }}
-          <div class="notice warn" style="margin-top: 12px;">{{ .Status.Message }}</div>
+          <div class="{{ .Status.MessageClass }}" style="margin-top: 12px;">{{ .Status.Message }}</div>
+          {{ end }}
+          {{ if .Status.Running }}
+          <div class="notice warn" style="margin-top: 12px;">Auto-refreshing while the scan runs.</div>
           {{ end }}
           {{ if .CaptureStatus }}
           <div class="notice warn" style="margin-top: 12px;">Capture status: {{ .CaptureStatus }}</div>
@@ -189,6 +200,7 @@
             </div>
             <div class="inline-row" style="margin-top: 10px;">
               <div class="value">Lens {{ .Selected.LensPosition }} · Score {{ .Selected.Score }}</div>
+              <a class="btn secondary" href="/focus-assist/image?id={{ .Selected.ID }}&type=fullres" target="_blank" rel="noopener">View full resolution</a>
               <form method="POST" action="/focus-assist/apply">
                 <input type="hidden" name="lens" value="{{ .Selected.LensPosition }}">
                 <button class="btn" type="submit">Apply selected</button>
@@ -208,26 +220,29 @@
         <div class="section">
           <div class="section-title">Capture log</div>
           {{ if .Logs }}
-          <table class="log-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Lens</th>
-                <th>Status</th>
-                <th>Output</th>
-              </tr>
-            </thead>
-            <tbody>
-              {{ range .Logs }}
-              <tr>
-                <td>{{ .Time }}</td>
-                <td>{{ .LensPosition }}</td>
-                <td>{{ .Status }}</td>
-                <td class="log-output">{{ .Output }}</td>
-              </tr>
-              {{ end }}
-            </tbody>
-          </table>
+          <details>
+            <summary>Show capture log ({{ .LogCount }} entries)</summary>
+            <table class="log-table" style="margin-top: 12px;">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Lens</th>
+                  <th>Status</th>
+                  <th>Output</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{ range .Logs }}
+                <tr>
+                  <td>{{ .Time }}</td>
+                  <td>{{ .LensPosition }}</td>
+                  <td>{{ .Status }}</td>
+                  <td class="log-output">{{ .Output }}</td>
+                </tr>
+                {{ end }}
+              </tbody>
+            </table>
+          </details>
           {{ else }}
           <div class="notice warn">No capture logs yet.</div>
           {{ end }}

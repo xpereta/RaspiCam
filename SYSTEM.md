@@ -146,12 +146,13 @@ EOF
 - Focus assist (planned): help select `rpiCameraLensPosition` by scoring sharpness in a
   user-selected region and recommending the best lens position. The UI includes a
   thumbnail gallery so users can inspect captured frames and choose a lens position
-  manually. Real-time scoring depends on libcamera support for fast frames or focus
+  manually, plus a full-resolution view of the captured stills. Real-time scoring
+  depends on libcamera support for fast frames or focus
   metadata; otherwise use a step-and-capture flow with still images.
   - Navigation: Status | Camera Config | Focus Assist.
   - Focus Assist is reachable directly from the primary nav and via Camera Config.
-  - Long-running actions surface progress/status in the UI.
-  - Capture logs from focus assist commands are visible in the UI.
+  - Long-running actions surface progress/status in the UI, with auto-refresh during scans.
+  - Capture logs from focus assist commands are available in the UI.
 
 ## Focus Assist Capture Mechanism
 - The UI uses still capture commands to grab frames for sharpness scoring.

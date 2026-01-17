@@ -25,6 +25,7 @@ type FocusAssistView struct {
 	CameraAfMode     string
 	Form             FocusAssistFormView
 	Logs             []FocusAssistLogView
+	LogCount         int
 	HasResults       bool
 	ApplyDisabled    bool
 	SelectedDisabled bool
@@ -39,16 +40,19 @@ type FocusAssistFormView struct {
 }
 
 type FocusAssistStatusView struct {
-	State        string
-	StateClass   string
-	Message      string
-	Total        int
-	Completed    int
-	CurrentLens  string
-	ProgressText string
-	ProgressPct  int
-	UpdatedAt    string
-	Running      bool
+	State         string
+	StateClass    string
+	Message       string
+	MessageClass  string
+	Total         int
+	Completed     int
+	CurrentLens   string
+	ProgressText  string
+	ProgressPct   int
+	UpdatedAt     string
+	Running       bool
+	FinishedAt    string
+	FinishedLabel string
 }
 
 type FocusAssistResultView struct {
@@ -155,6 +159,9 @@ func (s *Server) handleFocusAssistImage(w http.ResponseWriter, r *http.Request) 
 	imageKind := focusassist.ImageFull
 	if kind == string(focusassist.ImageThumb) {
 		imageKind = focusassist.ImageThumb
+	}
+	if kind == string(focusassist.ImageFullRes) {
+		imageKind = focusassist.ImageFullRes
 	}
 	data, ok := s.focusAssist.Image(id, imageKind)
 	if !ok {
@@ -305,6 +312,7 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 		CameraAfMode:     cameraAfMode,
 		Form:             form,
 		Logs:             logs,
+		LogCount:         len(logs),
 		HasResults:       len(results) > 0,
 		ApplyDisabled:    best == nil,
 		SelectedDisabled: selected == nil,
@@ -314,17 +322,22 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 
 func buildFocusAssistStatus(status focusassist.Status) FocusAssistStatusView {
 	stateClass := "badge warn"
+	messageClass := "notice warn"
 	running := false
 	switch status.State {
 	case focusassist.StateRunning:
 		stateClass = "badge warn"
+		messageClass = "notice warn"
 		running = true
 	case focusassist.StateDone:
 		stateClass = "badge ok"
+		messageClass = "notice ok"
 	case focusassist.StateFailed:
 		stateClass = "badge err"
+		messageClass = "notice err"
 	case focusassist.StateIdle:
 		stateClass = "badge warn"
+		messageClass = "notice warn"
 	}
 
 	progressPct := 0
@@ -344,17 +357,32 @@ func buildFocusAssistStatus(status focusassist.Status) FocusAssistStatusView {
 		updatedAt = status.UpdatedAt.Format("15:04:05")
 	}
 
+	finishedAt := ""
+	finishedLabel := ""
+	if !status.FinishedAt.IsZero() {
+		finishedAt = status.FinishedAt.Format("15:04:05")
+		switch status.State {
+		case focusassist.StateDone:
+			finishedLabel = "Completed at"
+		case focusassist.StateFailed:
+			finishedLabel = "Failed at"
+		}
+	}
+
 	return FocusAssistStatusView{
-		State:        status.State,
-		StateClass:   stateClass,
-		Message:      status.Message,
-		Total:        status.Total,
-		Completed:    status.Completed,
-		CurrentLens:  currentLens,
-		ProgressText: progressText,
-		ProgressPct:  progressPct,
-		UpdatedAt:    updatedAt,
-		Running:      running,
+		State:         status.State,
+		StateClass:    stateClass,
+		Message:       status.Message,
+		MessageClass:  messageClass,
+		Total:         status.Total,
+		Completed:     status.Completed,
+		CurrentLens:   currentLens,
+		ProgressText:  progressText,
+		ProgressPct:   progressPct,
+		UpdatedAt:     updatedAt,
+		Running:       running,
+		FinishedAt:    finishedAt,
+		FinishedLabel: finishedLabel,
 	}
 }
 
