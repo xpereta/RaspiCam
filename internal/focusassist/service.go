@@ -26,9 +26,11 @@ var (
 )
 
 type CaptureSettings struct {
-	Mode  string
-	VFlip bool
-	HFlip bool
+	Mode   string
+	VFlip  bool
+	HFlip  bool
+	Width  int
+	Height int
 }
 
 type Capturer interface {

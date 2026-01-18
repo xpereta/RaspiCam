@@ -162,9 +162,11 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		Step:   step,
 		Region: region,
 		Settings: focusassist.CaptureSettings{
-			Mode:  cameraCfg.Mode,
-			VFlip: cameraCfg.VFlip,
-			HFlip: cameraCfg.HFlip,
+			Mode:   cameraCfg.Mode,
+			VFlip:  cameraCfg.VFlip,
+			HFlip:  cameraCfg.HFlip,
+			Width:  cameraCfg.Width,
+			Height: cameraCfg.Height,
 		},
 	})
 	if err != nil {
@@ -179,9 +181,11 @@ func (s *Server) handleFocusAssistScan(w http.ResponseWriter, r *http.Request) {
 		Step:   step,
 		Region: region,
 		Settings: focusassist.CaptureSettings{
-			Mode:  cameraCfg.Mode,
-			VFlip: cameraCfg.VFlip,
-			HFlip: cameraCfg.HFlip,
+			Mode:   cameraCfg.Mode,
+			VFlip:  cameraCfg.VFlip,
+			HFlip:  cameraCfg.HFlip,
+			Width:  cameraCfg.Width,
+			Height: cameraCfg.Height,
 		},
 	})
 	if err != nil {

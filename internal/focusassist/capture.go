@@ -86,6 +86,10 @@ func captureSettingsArgs(settings CaptureSettings) []string {
 	if settings.HFlip {
 		args = append(args, "--hflip")
 	}
+	if settings.Width > 0 && settings.Height > 0 {
+		args = append(args, "--width", strconv.Itoa(settings.Width))
+		args = append(args, "--height", strconv.Itoa(settings.Height))
+	}
 	if settings.Mode != "" {
 		args = append(args, "--mode", settings.Mode)
 	}
