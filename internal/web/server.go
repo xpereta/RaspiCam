@@ -36,6 +36,7 @@ type StatusView struct {
 	GeneratedAt string
 	Hostname    string
 	IPAddress   string
+	CameraFeed  string
 	DeviceModel string
 	CameraModel string
 	OSLabel     string
@@ -140,7 +141,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	message, messageClass := cameraMessageFromStatus(r.URL.Query().Get("camera"))
 	mediamtxMessage, mediamtxMessageClass := mediamtxMessageFromStatus(r.URL.Query().Get("mediamtx"))
-	view, err := s.buildStatusView(r.Context(), message, messageClass, mediamtxMessage, mediamtxMessageClass)
+	view, err := s.buildStatusView(r.Context(), message, messageClass, mediamtxMessage, mediamtxMessageClass, cameraFeedURLFromRequest(r))
 	if err != nil {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
@@ -249,7 +250,7 @@ func (s *Server) handleMediaMTXStop(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?mediamtx=stopped", http.StatusSeeOther)
 }
 
-func (s *Server) buildStatusView(ctx context.Context, message, messageClass, mediamtxMessage, mediamtxMessageClass string) (StatusView, error) {
+func (s *Server) buildStatusView(ctx context.Context, message, messageClass, mediamtxMessage, mediamtxMessageClass, cameraFeed string) (StatusView, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -271,6 +272,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass, med
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
 		Hostname:    hostnameOrUnknown(),
 		IPAddress:   primaryIPv4OrUnknown(),
+		CameraFeed:  cameraFeed,
 		DeviceModel: device.Model,
 		CameraModel: device.Camera,
 		OSLabel:     device.OSLabel,
@@ -283,6 +285,17 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass, med
 	}
 
 	return view, nil
+}
+
+func cameraFeedURLFromRequest(r *http.Request) string {
+	host := r.Host
+	if host == "" {
+		return "http://localhost:8889/cam/"
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil && parsedHost != "" {
+		host = parsedHost
+	}
+	return "http://" + host + ":8889/cam/"
 }
 
 func formatMetrics(snap metrics.Snapshot) MetricsView {

@@ -16,6 +16,7 @@ import (
 type FocusAssistView struct {
 	NavActive        string
 	GeneratedAt      string
+	CameraFeed       string
 	Status           FocusAssistStatusView
 	Results          []FocusAssistResultView
 	Best             *FocusAssistResultView
@@ -90,7 +91,7 @@ func (s *Server) handleFocusAssist(w http.ResponseWriter, r *http.Request) {
 
 	message, messageClass := focusAssistMessageFromStatus(r.URL.Query().Get("status"))
 	selectedID := strings.TrimSpace(r.URL.Query().Get("select"))
-	view, err := s.buildFocusAssistView(selectedID, message, messageClass)
+	view, err := s.buildFocusAssistView(selectedID, message, messageClass, cameraFeedURLFromRequest(r))
 	if err != nil {
 		http.Error(w, "focus assist unavailable", http.StatusInternalServerError)
 		return
@@ -301,7 +302,7 @@ func (s *Server) handleFocusAssistAuto(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/focus-assist?status=auto-reset", http.StatusSeeOther)
 }
 
-func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) (FocusAssistView, error) {
+func (s *Server) buildFocusAssistView(selectedID, message, messageClass, cameraFeed string) (FocusAssistView, error) {
 	cameraAfMode := "unknown"
 	if cfg, err := config.LoadCameraConfig(s.configPath); err == nil {
 		cameraAfMode = cfg.AfMode
@@ -415,6 +416,7 @@ func (s *Server) buildFocusAssistView(selectedID, message, messageClass string) 
 	view := FocusAssistView{
 		NavActive:        "focus",
 		GeneratedAt:      time.Now().Format("2006-01-02 15:04:05"),
+		CameraFeed:       cameraFeed,
 		Status:           statusView,
 		Results:          results,
 		Best:             best,

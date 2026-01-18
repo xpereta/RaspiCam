@@ -94,6 +94,7 @@
       <nav class="nav">
         <a href="/" class="{{ if eq .NavActive "status" }}active{{ end }}">Status</a>
         <a href="/focus-assist" class="{{ if eq .NavActive "focus" }}active{{ end }}">Focus Assist</a>
+        <a href="{{ .CameraFeed }}" target="_blank" rel="noopener">Camera Feed</a>
       </nav>
 
       {{ if .Message }}
