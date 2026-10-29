@@ -48,7 +48,7 @@ larger share when the Pi is idle or halted after a low-battery shutdown.
 
 ## UI Endpoints
 - `GET /` status UI
-- `POST /camera-config` update camera flip settings
+- `POST /camera-config` update camera flip settings; cross-origin requests are rejected with `403 Forbidden` (Sec-Fetch-Site/Origin check)
 
 ## Testing
 ```

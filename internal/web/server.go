@@ -104,7 +104,7 @@ func NewServer() (*Server, error) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleStatus)
-	mux.HandleFunc("/camera-config", s.handleCameraUpdate)
+	mux.Handle("/camera-config", sameOrigin(http.HandlerFunc(s.handleCameraUpdate)))
 	return mux
 }
 

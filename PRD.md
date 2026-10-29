@@ -88,6 +88,13 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - MediaMTX service status.
   - MediaMTX stream state if exposed by Control API.
 - Provides configuration editing for a limited set of parameters (TBD).
+- Configuration changes (`POST /camera-config`) reject cross-origin requests
+  with `403 Forbidden` to prevent cross-site request forgery:
+  - Accepted when `Sec-Fetch-Site` is `same-origin` or `none`.
+  - Without `Sec-Fetch-Site`, accepted only when the `Origin` host matches the
+    request host.
+  - Requests with neither header (non-browser clients such as curl) are
+    accepted.
 - Uses MediaMTX Control API when available:
   - https://mediamtx.org/docs/usage/control-api
   - https://mediamtx.org/docs/references/control-api
