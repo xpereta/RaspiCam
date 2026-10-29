@@ -187,7 +187,7 @@ pack is exhausted.
 
 ## Non-Functional Requirements
 - BAT-NFR-1: Standard library only. I2C access uses `/dev/i2c-*` with the
-  `I2C_SLAVE` ioctl via `syscall`; adding `golang.org/x/sys` requires
+  `I2C_RDWR` ioctl via `syscall`; adding `golang.org/x/sys` requires
   justification in the spec.
 - BAT-NFR-2: Negligible CPU and memory: one small read every poll interval, no
   allocations in the steady-state polling loop beyond trivial ones.
@@ -484,7 +484,7 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
   `Restart=always` in the systemd unit so a crash only pauses monitoring for a
   few seconds.
 - Q2 (resolved): The gauge is read directly from userspace via `/dev/i2c-1`
-  (standard library, `I2C_SLAVE` ioctl). The kernel `max17040` driver is not
+  (standard library, `I2C_RDWR` ioctl). The kernel `max17040` driver is not
   used: it needs a custom device tree overlay and may not expose `CRATE`.
 - Q3 (resolved): Defaults are 5% SOC / 3.30V as placeholders. Final values
   are set after one full discharge in dry-run mode (BAT-FR-14) with the camera

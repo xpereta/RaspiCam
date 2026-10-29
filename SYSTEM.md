@@ -294,17 +294,21 @@ one full discharge:
    The Battery card shows `(dry run)`.
 2. Charge fully, unplug the charger, and keep the camera streaming (the
    real load).
-3. Watch the log:
+3. Watch the log over SSH from another machine:
    ```
    journalctl -u raspicam-ui -f
    ```
-   When the threshold is reached the log shows
-   `battery: shutdown requested: reason=low_battery ... dry_run=true` with
-   the voltage and SOC, followed by `battery: dry run, not powering off`.
-   Reload the status page now and then to follow the Battery card readings.
-4. Let it run until the UPS module cuts its output. Note the last voltage
-   seen before the cut (the module's over-discharge cutoff is not
-   documented).
+   In dry run every poll is logged as
+   `battery: reading volts=3.912 soc=64.2 crate=-11.85 trend=discharging level=OK`
+   (only in dry run, to keep SD writes low in normal use). When the
+   threshold is reached the log also shows
+   `battery: shutdown requested: reason=low_battery ... dry_run=true`,
+   followed by `battery: dry run, not powering off`.
+4. Let it run until the UPS module cuts its output. The last `reading` line
+   in your SSH session is the cutoff voltage (the module's over-discharge
+   cutoff is not documented). Watch live: journald may not have synced the
+   final lines to disk before power is lost, so `journalctl -b -1` after the
+   next boot can miss them.
 5. Set `BATTERY_SHUTDOWN_VOLTS` at least 0.15 V above that cutoff voltage
    (margin for voltage sag under load), and adjust `BATTERY_SHUTDOWN_SOC` if
    needed.

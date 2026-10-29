@@ -383,7 +383,7 @@ shown in the status page warnings).
 | Variable | Default | Valid |
 |---|---|---|
 | `BATTERY_ENABLED` | `true` | bool |
-| `BATTERY_I2C_DEVICE` | `/dev/i2c-1` | non-empty path |
+| `BATTERY_I2C_DEVICE` | `/dev/i2c-1` | absolute path |
 | `BATTERY_I2C_ADDR` | `0x36` | 0x03-0x77 |
 | `BATTERY_POLL_INTERVAL` | `30s` | 10s-10m |
 | `BATTERY_LOW_SOC` | `20` | 1-90 |
@@ -392,7 +392,7 @@ shown in the status page warnings).
 | `BATTERY_SHUTDOWN_SAMPLES` | `3` | 1-20 |
 | `BATTERY_GRACE_PERIOD` | `2m` | 0-30m |
 | `BATTERY_SHUTDOWN_DRY_RUN` | `false` | bool |
-| `STATE_DIR` | `$STATE_DIRECTORY` or `/var/lib/raspicam` | path |
+| `STATE_DIR` | `$STATE_DIRECTORY` (first entry) or `/var/lib/raspicam` | absolute path |
 | `BATTERY_HISTORY_ENABLED` | `true` | bool (phase 2) |
 | `BATTERY_HISTORY_SAMPLE_INTERVAL` | `60s` | 30s-10m, multiple of poll interval |
 | `BATTERY_HISTORY_FLUSH_INTERVAL` | `15m` | 1m-1h |
