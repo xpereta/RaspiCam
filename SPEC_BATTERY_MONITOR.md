@@ -305,8 +305,10 @@ func (s *Shutdown) Pending() bool
 1. Guard (real mode, mutex-protected state, not `sync.Once`): while a
    shutdown is in progress, other calls return `ErrShutdownInProgress`. If
    `power.PowerOff` fails, the guard is released so the call can be retried
-   (by the monitor's next tick or another button press). Dry run allows
-   repeated events but logs each.
+   (by the monitor's next tick or another button press). The monitor also
+   keeps retrying on each tick after `ErrShutdownInProgress`, since a
+   concurrent (manual) attempt may still fail; rejected calls are silent.
+   Dry run allows repeated events but logs each.
 2. `log.Printf` with reason, threshold, voltage, SOC, client, dry run.
 3. Append the event to the shutdown log (fsync before continuing). On a
    retry after a failed power-off, the event is not appended again.
@@ -632,7 +634,7 @@ All tests run without hardware (`go test ./...` on macOS and Linux).
 | Trend | dead band, 2-sample switch, noise around the band |
 | Policy | grace period by uptime (incl. UI restart after grace), charging suppression and latch clear, N consecutive, reset on recovery, read errors and implausible readings reset the count (`low, error, low, error, low` does not trigger), latch kept across errors, volts-only and SOC-only triggers |
 | Monitor | fake gauge, injected `tick <-chan time.Time`, clock and uptime func, read-error state transitions, slow read (> 500ms) counted as error, `Stale` after 3 intervals with a blocked fake gauge, power-off failure retried on next tick, no retry after success |
-| Shutdown | ordering (log, then finalize, then flush, then power), dry run flushes but never finalizes or calls power, second call rejected while in progress, guard released and no duplicate log entry after power-off failure |
+| Shutdown | ordering (log, then finalize, then flush, then power), dry run flushes but never finalizes or calls power, second call rejected while in progress (monitor retries until the guard is released), guard released and no duplicate log entry after power-off failure |
 | Shutdown log | append keeps last 10, corrupt lines skipped, atomic rewrite, newest first |
 | Config | defaults, each invalid value replaced with warning, `SHUTDOWN_SOC < LOW_SOC`, poll interval < 10s rejected |
 | Power | `busctl` output parsing (`s "yes"`, `s "no"`, `s "challenge"`, garbage) |

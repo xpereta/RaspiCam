@@ -2,7 +2,6 @@ package battery
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -295,8 +294,10 @@ func (m *Monitor) pollOK(ctx context.Context, r Reading, uptime time.Duration) {
 }
 
 // handleDecision calls the shutdown coordinator while the decision is
-// latched: once per latch episode on success, in-progress or dry run, and
-// again on the next poll after a power-off failure.
+// latched: once per latch episode on success or dry run, and again on the
+// next poll after a power-off failure or while another shutdown (such as a
+// manual one) is in progress, since that attempt may still fail. Rejected
+// calls return before logging, so the retries are cheap and silent.
 func (m *Monitor) handleDecision(ctx context.Context, d Decision, last Reading) {
 	if !d.Shutdown {
 		m.shutdownDone = false
@@ -312,10 +313,10 @@ func (m *Monitor) handleDecision(ctx context.Context, d Decision, last Reading) 
 		SOC:        last.SOC,
 		HasBattery: true,
 	})
-	if err == nil || errors.Is(err, ErrShutdownInProgress) {
+	if err == nil {
 		m.shutdownDone = true
 	}
-	// Any other error is a failed power off; retry on the next poll.
+	// ErrShutdownInProgress or a failed power off: retry on the next poll.
 }
 
 // systemUptime returns the system uptime, falling back to the time since
