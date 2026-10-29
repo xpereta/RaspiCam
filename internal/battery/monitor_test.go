@@ -331,6 +331,33 @@ func lowShutdown(t *testing.T, dryRun bool, power *fakePower) (*Shutdown, *Shutd
 	return NewShutdown(l, p, dryRun, nil, nil, WithShutdownLogf(quietLogf)), l
 }
 
+// A low-battery shutdown rejected because a manual one is running must be
+// retried, in case the manual attempt fails and releases the guard.
+func TestMonitorRetriesWhileOtherShutdownInProgress(t *testing.T) {
+	rec := &callRecorder{}
+	power := &fakePower{rec: rec}
+	sd, _ := lowShutdown(t, false, power)
+	sd.inProgress = true // a manual shutdown is running
+	g := &fakeGauge{results: []gaugeResult{good(4, 3.6, -5)}}
+	h := newHarness(t, g, sd, nil)
+	h.start()
+	h.step()
+	h.step() // third low sample: latched, Execute rejected
+	h.step() // still rejected
+	if power.count() != 0 {
+		t.Fatalf("power called while another shutdown was in progress")
+	}
+
+	// The manual attempt failed and released the guard.
+	sd.mu.Lock()
+	sd.inProgress = false
+	sd.mu.Unlock()
+	h.step()
+	if power.count() != 1 {
+		t.Fatalf("power calls = %d after guard released, want 1", power.count())
+	}
+}
+
 func TestMonitorRetriesPowerOffFailure(t *testing.T) {
 	rec := &callRecorder{}
 	errPower := errors.New("systemctl failed")
