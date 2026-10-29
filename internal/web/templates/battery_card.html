@@ -1,0 +1,75 @@
+{{ define "battery_card" }}
+<div class="card" style="margin-bottom: 16px;">
+  <div class="section">
+    <div class="section-title">Battery</div>
+    {{ if .HasValues }}
+    <div class="grid">
+      <div class="label">Voltage</div>
+      <div class="value">{{ .Volts }}</div>
+
+      <div class="label">Charge</div>
+      <div class="value">
+        <span class="bar"><span class="bar-fill {{ .BarClass }}" style="width: {{ .SOCPercent }}%;"></span></span>
+        {{ .SOC }}
+      </div>
+
+      <div class="label">Trend</div>
+      <div class="value">{{ .Trend }}</div>
+
+      {{ if .Remaining }}
+      <div class="label">Remaining</div>
+      <div class="value">{{ .Remaining }}</div>
+      {{ end }}
+
+      <div class="label">Level</div>
+      <div class="value"><span class="{{ .LevelClass }}">{{ .Level }}</span></div>
+
+      <div class="label">Last reading</div>
+      <div class="value">{{ .LastReading }}</div>
+    </div>
+    {{ else }}
+    <div class="{{ .NoticeClass }}">{{ .Notice }}</div>
+    {{ end }}
+    <div class="divider"></div>
+    <div class="grid">
+      <div class="label">Auto-shutdown</div>
+      <div class="value">{{ .AutoShutdown }}</div>
+
+      <div class="label">Last shutdown</div>
+      <div class="value">
+        {{ with .LastShutdown }}{{ template "shutdown_entry" . }}{{ else }}none recorded{{ end }}
+      </div>
+    </div>
+    {{ if .Shutdowns }}
+    <details class="history">
+      <summary class="label">Shutdown log ({{ len .Shutdowns }})</summary>
+      <ul>
+        {{ range .Shutdowns }}
+        <li>{{ template "shutdown_entry" . }}</li>
+        {{ end }}
+      </ul>
+    </details>
+    {{ end }}
+  </div>
+  <div class="section">
+    <div class="section-title">Power off</div>
+    <form class="form" method="POST" action="/power-off">
+      <label class="toggle">
+        <input type="checkbox" name="confirm" value="yes" required {{ if not .PowerOff.Enabled }}disabled{{ end }}>
+        <span>I understand the Pi will power off</span>
+      </label>
+      <div>
+        <button class="btn danger" type="submit" {{ if not .PowerOff.Enabled }}disabled{{ end }}>Power off{{ if .PowerOff.DryRun }} (dry run){{ end }}</button>
+      </div>
+    </form>
+    {{ if .PowerOff.Note }}
+    <div class="label" style="margin-top: 8px;">{{ .PowerOff.Note }}</div>
+    {{ end }}
+    {{ if .Message }}
+    <div class="{{ .MessageClass }}">{{ .Message }}</div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ define "shutdown_entry" }}{{ .Time }}, {{ .Reason }}{{ if .Threshold }} ({{ .Threshold }}){{ end }}, {{ .Reading }}{{ if .DryRun }} <span class="badge warn">dry run</span>{{ end }}{{ end }}

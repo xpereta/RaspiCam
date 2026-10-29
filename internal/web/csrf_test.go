@@ -52,8 +52,7 @@ func TestSameOrigin(t *testing.T) {
 
 func TestHandlerRejectsCrossSiteCameraConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "mediamtx.yml")
-	t.Setenv("MEDIAMTX_CONFIG_PATH", configPath)
-	s, err := NewServer()
+	s, err := NewServer(Deps{ConfigPath: configPath})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
