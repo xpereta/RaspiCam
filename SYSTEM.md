@@ -233,11 +233,120 @@ The Battery card shows:
   `/camera-config`). In dry run the request is only logged.
 
 ### Wiring
-- The gauge measures the battery pack directly, before the UPS/boost module:
-  pack `+`/`-` to the gauge `CELL+`/`CELL-` (or its JST battery input).
-- `SDA` -> GPIO2 (pin 3), `SCL` -> GPIO3 (pin 5), `GND` -> Pi GND (pin 6).
-- Check that the breakout's I2C pull-ups go to 3.3V (3.3V-compatible logic
-  level), not to the battery voltage.
+Parts:
+- 2x 18650 cells, same model and capacity (protected cells recommended).
+- 2-cell parallel holder (1S2P). Never in series: the MAX17048 and the
+  module are single-cell (3.0-4.2 V) devices.
+- UPS-15W 18650 charge/boost module (5V out, see "Hardware Notes").
+- MAX17048 breakout, I2C address `0x36`.
+- Optional switch on the 5V line (needed to restart the Pi after a
+  low-battery shutdown, see "Hardware Notes").
+
+```mermaid
+flowchart LR
+    CHG["USB 5V charger<br/>(only while charging)"]
+
+    subgraph PACK["Battery pack, 1S2P"]
+        C1["18650 cell 1"]
+        C2["18650 cell 2"]
+    end
+
+    subgraph UPS["UPS-15W charge/boost module"]
+        UIN["5V IN"]
+        UB["B+ / B-"]
+        UOUT["5V OUT"]
+    end
+
+    subgraph GAUGE["MAX17048 breakout"]
+        GC["CELL+ / CELL-"]
+        GI["VCC SDA SCL GND"]
+    end
+
+    SW["Switch<br/>(5V line)"]
+
+    subgraph PI["Pi Zero 2 W"]
+        PWR["PWR IN micro-USB"]
+        HDR["GPIO header<br/>pins 1, 3, 5, 6"]
+    end
+
+    CHG -->|5V| UIN
+    C1 ===|parallel| C2
+    PACK ===|"thick wires, + and -"| UB
+    PACK -.->|"sense wires, + and -"| GC
+    UOUT ==>|5V, up to 3A| SW ==> PWR
+    GI <-->|"I2C 3.3V + GND"| HDR
+```
+
+Connections:
+
+| From | To | Notes |
+|---|---|---|
+| Cell holder `+` / `-` | Module `B+` / `B-` | Thick, short wires: up to about 1.5 A from the cells while streaming peaks |
+| Cell holder `+` | Gauge `CELL+` (or JST `+`) | Own thin wire, soldered at the holder terminal |
+| Cell holder `-` or module `5V OUT -` | Gauge `CELL-` (or JST `-`) | See the ground check below |
+| Module `5V OUT` | Switch, then Pi `PWR IN` micro-USB | Short cable rated for 2-3 A |
+| Gauge `VCC` / `VIN` (if present) | Pi pin 1 (3.3V) | Powers only the I2C pull-ups or level shifter; the chip runs from the cell |
+| Gauge `SDA` | Pi pin 3 (GPIO2, SDA1) | |
+| Gauge `SCL` | Pi pin 5 (GPIO3, SCL1) | |
+| Gauge `GND` | Pi pin 6 (GND) | |
+| Gauge `ALRT` / `INT` | not connected | The UI polls; the alert pin is unused |
+
+Pi header, first three rows (pin 1 has the square solder pad and is at the
+SD card end of the header):
+```
+        3.3V  [ 1] [ 2]  5V
+  GPIO2 SDA1  [ 3] [ 4]  5V
+  GPIO3 SCL1  [ 5] [ 6]  GND
+```
+
+Notes:
+- Sense wires: run the gauge's `CELL+`/`CELL-` on their own wires from the
+  cell holder terminals, not spliced into the module's power wires. They
+  carry almost no current, so the gauge reads the cell voltage without the
+  drop of the high-current wires. Keep them short and away from the camera
+  ribbon.
+- Ground check: on many small modules `B-` is the system ground, but some
+  put a protection switch between `B-` and `5V OUT -`. The gauge's `CELL-`
+  and `GND` are the same net on most breakouts, so wiring `CELL-` to `B-` and
+  `GND` to the Pi would bypass that switch through the thin I2C ground wire.
+  Check before connecting the gauge:
+  ```mermaid
+  flowchart TD
+      A["Cells out, charger unplugged.<br/>Measure resistance between<br/>module B- and 5V OUT -"] --> B{"Below 1 ohm?"}
+      B -->|Yes| C["Common ground.<br/>Connect gauge CELL- to B-."]
+      B -->|"No (open or high)"| D["Low-side protection switch.<br/>Connect gauge CELL- to<br/>5V OUT - (system ground)."]
+      C --> E["Gauge GND to Pi GND, pin 6"]
+      D --> E
+  ```
+  With `CELL-` on `5V OUT -` the reading includes the switch's small drop
+  (tens of mV under load); calibration (below) absorbs it.
+- Logic level: the Pi's GPIO is 3.3V only. Check that the breakout's I2C
+  pull-ups go to its `VCC`/`VIN` (fed from pin 1), not to `CELL+`: a full
+  cell is 4.2 V. If the breakout has no `VCC` pin, check with a multimeter
+  that `SDA`/`SCL` idle at 3.3V or less (gauge connected to the cell, Pi
+  off), or rely on the Pi's own 1.8k pull-ups to 3.3V and remove the
+  breakout's.
+- JST connectors: polarity is not standard across sellers. Check `+`/`-`
+  with a multimeter before plugging in.
+- Power input: feed the Pi through the micro-USB port labelled `PWR IN`
+  (the one nearer the board corner; the other is data only). Feeding 5V into
+  header pin 2 or 4 also works, but a reversed or wrong wire there goes
+  straight to the board, so prefer the micro-USB cable.
+- Cells: before putting both cells in the parallel holder, charge them
+  separately or check they are within 0.05 V of each other, so a large
+  current does not flow from one to the other.
+- Undervoltage: the Pi warns below about 4.63V at its input. A thin or long
+  5V cable can drop that much at streaming peaks; if `vcgencmd get_throttled`
+  reports under-voltage with full cells, shorten or thicken the 5V cable.
+
+Order of assembly and checks:
+1. Cells out. Do the ground check above, then wire the holder to the module
+   and the module to the switch and the Pi; leave the gauge unconnected.
+2. Check cell polarity in the holder and insert matched cells, switch off.
+3. Wire the gauge (sense wires, then `VCC`/`SDA`/`SCL`/`GND`), Pi still off.
+4. Measure `CELL+` to `CELL-` at the gauge (should match the cell voltage)
+   and `SDA`/`SCL` to `GND` (3.3V or less).
+5. Power on, enable I2C (next section) and check `i2cdetect -y 1` shows `36`.
 
 ### Enable I2C
 - `sudo raspi-config` -> Interface Options -> I2C, or add this line to
