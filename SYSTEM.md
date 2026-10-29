@@ -62,6 +62,7 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 ## Security Posture (Initial)
 - Local network access only; no authentication initially.
 - Control API should bind to localhost or be access-restricted.
+- State-changing POSTs reject cross-origin requests (Sec-Fetch-Site/Origin check).
 
 ## Observability
 - Basic logs for MediaMTX and UI (systemd journal).
