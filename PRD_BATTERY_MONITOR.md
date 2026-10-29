@@ -193,8 +193,8 @@ pack is exhausted.
     hibernate, from the pack directly. Keep the chip's automatic hibernate
     enabled (do not force it awake). This is under 0.05% of the Pi's typical
     100-250mA draw.
-  - Pi side: each poll is a single 6-byte I2C transaction (VCELL, SOC, CRATE)
-    lasting well under 1ms. No subprocesses (no `i2cget`/`vcgencmd` per poll),
+  - Pi side: each poll is two short I2C reads (VCELL+SOC, then CRATE)
+    lasting well under 1ms in total. No subprocesses (no `i2cget`/`vcgencmd` per poll),
     no busy-waits or sleeps in loops, a single `time.Ticker` for the monitor.
   - Keep the I2C device handle open between polls rather than reopening it.
   - Default poll interval of 30s; a minimum of 10s is enforced so it cannot be
