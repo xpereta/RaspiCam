@@ -232,6 +232,9 @@ func (m *Monitor) Status() Status             // RWMutex-protected copy
 - `Run` reads once immediately, then on a single `time.Ticker`.
 - After 3 consecutive read errors the state becomes `ReadError` (UI shows
   the error); a successful read restores `StateOK`.
+- Read errors are logged at the first failure of a streak, again when the
+  state becomes `ReadError`, and once on recovery, not on every poll (low SD
+  writes while the gauge is unplugged; visible during calibration).
 - `Status()` reports `StateStale` when the monitor is running and the last
   completed poll (success or error) is older than 3 poll intervals, for
   example because a read never returned. The check uses the monitor's

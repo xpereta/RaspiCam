@@ -336,15 +336,16 @@ What you need:
    appears. Note the time.
 5. Read the last readings from the local file:
    ```
-   grep -E 'battery: reading|ssh lost|[Uu]ndervoltage' cutoff-*.log | tail -n 30
+   grep -E 'battery: (reading|read failed|reads recovered)|ssh lost|[Uu]ndervoltage' cutoff-*.log | tail -n 30
    ```
    The last `volts=` value is the cutoff voltage under load (accurate to one
    poll interval). Also note the last `soc=`, the run time from step 2, and
    the voltage about 3 minutes before the cutoff (needed for the threshold).
-   - Failed gauge reads are not logged. If the `reading` lines stop well
-     before `ssh lost`, the gauge stopped answering first, and the last
-     reading is only an upper bound for the cutoff; the Battery card shows
-     `Read error` in that case.
+   - If `battery: read failed: ...` appears before `ssh lost`, the gauge
+     stopped answering first, and the last reading is only an upper bound
+     for the cutoff. Only the first failure of a streak is logged, then a
+     line after 3 failures (the card shows `Read error`) and one when reads
+     recover.
    - Brownout: if `Undervoltage detected!` lines appear, or the Pi reboots
      and the log resumes after an `ssh lost` line, the boost converter could
      not hold 5 V under load before the module's protection tripped. Use the
