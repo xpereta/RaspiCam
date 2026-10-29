@@ -286,34 +286,97 @@ The Battery card shows:
   Corrupt lines are skipped.
 - Phase 2 battery history will use `<state dir>/battery`.
 
-### Dry-Run Calibration
-The default thresholds (5% / 3.30 V) are placeholders. Calibrate them with
-one full discharge:
-1. Set `Environment=BATTERY_SHUTDOWN_DRY_RUN=true`, then
-   `sudo systemctl daemon-reload && sudo systemctl restart raspicam-ui`.
+### Finding the Cutoff Voltage (Calibration)
+The default thresholds (5% / 3.30 V) are placeholders. The UPS module's
+over-discharge cutoff is not documented, so measure the voltage at which the
+Pi loses power, then set `BATTERY_SHUTDOWN_VOLTS` with a margin above it.
+Whatever trips first (the module's cell protection, or the boost converter
+no longer holding 5 V under load) is the number that matters.
+
+What you need:
+- The Pi with the gauge wired and detected (Battery card shows a voltage).
+- A second machine with SSH access to the Pi, kept awake for the whole run.
+- Method A: fully charged cells and a few hours. Method B: an adjustable
+  bench supply (0-5 V, current limit) instead of the cells.
+
+#### Prepare
+1. Add to the unit (`sudo systemctl edit raspicam-ui` or the unit file):
+   ```
+   Environment=BATTERY_SHUTDOWN_DRY_RUN=true
+   Environment=BATTERY_POLL_INTERVAL=10s
+   ```
+   Dry run logs every reading and never powers off. 10s is the minimum poll
+   interval and gives a finer reading near the cutoff (the 30s default can
+   miss up to 30s of discharge).
+2. `sudo systemctl daemon-reload && sudo systemctl restart raspicam-ui`.
    The Battery card shows `(dry run)`.
-2. Charge fully, unplug the charger, and keep the camera streaming (the
-   real load).
-3. Watch the log over SSH from another machine:
+3. On the second machine, record the log to a local file, so it survives
+   the Pi losing power (journald on the Pi may not have synced its last
+   lines to disk, so `journalctl -b -1` after the next boot can miss them):
    ```
-   journalctl -u raspicam-ui -f
+   ssh pi@<pi-host> 'journalctl -u raspicam-ui -f -o short-iso' | tee cutoff-$(date +%Y%m%d).log
    ```
-   In dry run every poll is logged as
-   `battery: reading volts=3.912 soc=64.2 crate=-11.85 trend=discharging level=OK`
-   (only in dry run, to keep SD writes low in normal use). When the
-   threshold is reached the log also shows
-   `battery: shutdown requested: reason=low_battery ... dry_run=true`,
-   followed by `battery: dry run, not powering off`.
-4. Let it run until the UPS module cuts its output. The last `reading` line
-   in your SSH session is the cutoff voltage (the module's over-discharge
-   cutoff is not documented). Watch live: journald may not have synced the
-   final lines to disk before power is lost, so `journalctl -b -1` after the
-   next boot can miss them.
-5. Set `BATTERY_SHUTDOWN_VOLTS` at least 0.15 V above that cutoff voltage
-   (margin for voltage sag under load), and adjust `BATTERY_SHUTDOWN_SOC` if
-   needed.
-6. Turn dry run off (`BATTERY_SHUTDOWN_DRY_RUN=false` or remove the line),
-   then reload and restart the service.
+   Each poll appears as
+   `battery: reading volts=3.912 soc=64.2 crate=-11.85 trend=discharging level=OK`.
+
+#### Method A: full discharge (real load, recommended)
+1. Charge fully with the Pi off, then boot it and unplug the charger.
+2. Keep the camera streaming (open the stream in a player) so the load
+   matches use in the train. Note the start time.
+3. Wait. Around the configured threshold the log also shows
+   `battery: shutdown requested: reason=low_battery ... dry_run=true` and
+   `battery: dry run, not powering off`; this is expected, keep going.
+4. When the module cuts its output the SSH session freezes or drops. Note
+   the time.
+5. Read the last readings from the local file:
+   ```
+   grep 'battery: reading' cutoff-*.log | tail -n 5
+   ```
+   The last `volts=` value is the cutoff voltage under load (accurate to one
+   poll interval). Also note the last `soc=` and the run time from step 2.
+6. Optional: measure the cells with a multimeter right after the cutoff.
+   They rebound once unloaded, so expect a higher value than the log; use
+   the logged value for the threshold.
+7. Recharge (connecting the charger restores 5V after a protection trip).
+
+#### Method B: bench supply (fast, no discharge)
+1. Remove the cells and connect a bench supply to the module's battery
+   terminals (B+/B-), set to 4.0 V with a current limit of about 2 A. Do not
+   connect a USB charger to the module while the bench supply is attached.
+   Removing the cells resets the MAX17048, so SOC values in this test are
+   meaningless; only `volts=` matters.
+2. Boot the Pi and start the camera stream.
+3. Lower the supply in 0.05 V steps, waiting at least two polls (20s) per
+   step. Below about 3.4 V use 0.02 V steps.
+4. Note the supply voltage at which the Pi loses power, and compare it with
+   the last `volts=` in the log (the difference is the wiring drop between
+   supply and gauge).
+5. The supply holds its voltage under load, while real cells sag more, so
+   treat this result as optimistic and confirm it with Method A when you can.
+
+#### Set the threshold
+1. `BATTERY_SHUTDOWN_VOLTS` = cutoff voltage + at least 0.15 V (margin for
+   load spikes and cell aging). Example: cutoff at 3.05 V -> 3.20 V. Values
+   must stay within the valid range in the table above.
+2. If the last SOC before the cutoff was well above 0%, raise
+   `BATTERY_SHUTDOWN_SOC` too (the gauge's SOC is less reliable near empty
+   on a new pack; it improves after a few full cycles).
+3. Remove the two calibration lines (or set
+   `BATTERY_SHUTDOWN_DRY_RUN=false`), add the new thresholds, then reload and
+   restart the service.
+
+#### Verify (real shutdown)
+1. Run one more discharge with dry run off and the camera streaming, still
+   logging over SSH.
+2. Expected: `battery: shutdown requested: reason=low_battery` and a clean
+   power-off before the module cuts the output. After recharging and
+   booting, the Battery card's shutdown log lists a `low_battery` entry with
+   the voltage and SOC.
+3. If the module still cuts first, raise `BATTERY_SHUTDOWN_VOLTS` by 0.05 V
+   and repeat.
+
+Record the result (date, cells, cutoff voltage, SOC at cutoff, run time,
+chosen thresholds) so later runs can show cell aging.
 
 ### Hardware Notes
 - Power tip: the 18650 UPS charge/boost module draws about 25mA on its own.
