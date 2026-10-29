@@ -436,10 +436,10 @@ Status page: a new Battery card (`templates/battery_card.html`, included by
   (`/power-off`, and `/battery/reset` in phase 2) are rejected with 403
   unless `Sec-Fetch-Site` is `same-origin` or `none`, or, when that header is
   absent, the `Origin` header host matches `r.Host`. Uses the
-  `sameOrigin(next http.Handler)` middleware in `internal/web/csrf.go`, added
-  for `/camera-config` in a separate PR (`fix/camera-config-csrf`); this
-  feature reuses it. If that PR has not merged when P1-8 starts, rebase on it
-  first. Go 1.22 has no built-in equivalent.
+  existing `sameOrigin(next http.Handler)` middleware in
+  `internal/web/csrf.go` (added for `/camera-config` in xpereta/RaspiCam#19,
+  merged); this feature only wraps its new routes with it. Go 1.22 has no
+  built-in equivalent.
 
 ### 3.10 Main Wiring (BAT-NFR-3, Q1)
 
