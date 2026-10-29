@@ -404,6 +404,8 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
     upstream of the 5V boost module.
   - `SDA` -> GPIO2 (pin 3), `SCL` -> GPIO3 (pin 5), `GND` -> Pi GND (pin 6).
   - Confirm the breakout's I2C pull-ups/logic level are 3.3V compatible.
+  - Full wiring (diagrams, connection table, ground check, assembly order)
+    is in `SYSTEM.md` ("Wiring").
 - Enable I2C: `sudo raspi-config` -> Interface Options -> I2C (adds
   `dtparam=i2c_arm=on`).
 - Verify: `sudo apt install i2c-tools` then `i2cdetect -y 1` shows `36`.
