@@ -5,12 +5,29 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# Adjust User/Group as needed for your Pi setup.
+# Adjust User/Group as needed for your Pi setup. Power off needs the polkit
+# rule from SYSTEM.md for this user.
 User=pi
 Group=pi
+# Access to /dev/i2c-1 for the MAX17048 battery gauge.
+SupplementaryGroups=i2c
+# Creates /var/lib/raspicam (shutdown log) and sets STATE_DIRECTORY.
+StateDirectory=raspicam
 Environment=UI_ADDR=:8080
+# Battery monitor settings (defaults shown). Use dry run for the first
+# calibration discharge, then remove it once the thresholds are set.
+#Environment=BATTERY_SHUTDOWN_DRY_RUN=true
+#Environment=BATTERY_ENABLED=true
+#Environment=BATTERY_I2C_DEVICE=/dev/i2c-1
+#Environment=BATTERY_I2C_ADDR=0x36
+#Environment=BATTERY_POLL_INTERVAL=30s
+#Environment=BATTERY_LOW_SOC=20
+#Environment=BATTERY_SHUTDOWN_SOC=5
+#Environment=BATTERY_SHUTDOWN_VOLTS=3.30
+#Environment=BATTERY_SHUTDOWN_SAMPLES=3
+#Environment=BATTERY_GRACE_PERIOD=2m
 ExecStart=/usr/local/bin/raspicam-ui
-Restart=on-failure
+Restart=always
 RestartSec=2
 
 [Install]
