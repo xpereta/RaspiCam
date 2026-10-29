@@ -177,9 +177,23 @@ func buildBattery(cfg config.BatteryConfig, sd *battery.Shutdown) batteryRuntime
 		RequiredSamples: cfg.ShutdownSamples,
 		GracePeriod:     cfg.GracePeriod,
 	})
+	var sinks []battery.Sink
+	if cfg.DryRun {
+		// Calibration aid: log every reading so the UPS cutoff voltage can be
+		// read from the journal. Off in normal use to keep SD writes low.
+		sinks = append(sinks, readingLogger{})
+	}
 	monitor := battery.NewMonitor(gauge, policy, sd, cfg.PollInterval,
-		battery.MonitorClock{Now: time.Now, Uptime: system.Uptime})
+		battery.MonitorClock{Now: time.Now, Uptime: system.Uptime}, sinks...)
 	return batteryRuntime{status: monitor, monitor: monitor, gauge: gauge}
+}
+
+// readingLogger is a battery.Sink that logs each reading.
+type readingLogger struct{}
+
+func (readingLogger) Record(r battery.Reading, s battery.Status) {
+	log.Printf("battery: reading volts=%.3f soc=%.1f crate=%.2f trend=%s level=%s",
+		r.Volts, r.SOC, r.CRate, s.Trend, s.Decision.Level)
 }
 
 // openGauge opens the bus and detects the gauge, closing the bus when
