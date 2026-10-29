@@ -132,6 +132,7 @@ type Monitor struct {
 	uptimeNoted  bool
 	tick         <-chan time.Time // test hook; nil uses a time.Ticker
 	afterPoll    func()           // test hook; called after each poll
+	logf         func(format string, args ...any)
 
 	mu       sync.RWMutex
 	status   Status
@@ -160,6 +161,7 @@ func NewMonitor(g Gauge, p *Policy, sd *Shutdown, interval time.Duration,
 		uptime:   clock.Uptime,
 		sinks:    sinks,
 		created:  now(),
+		logf:     logPrintf,
 	}
 	m.status.State = StateOK
 	if rr, ok := g.(resetReporter); ok {
@@ -240,6 +242,14 @@ func (m *Monitor) poll(ctx context.Context) {
 
 func (m *Monitor) pollFailed(ctx context.Context, err error, uptime time.Duration) {
 	m.errCount++
+	// Log the start of a failure streak and the switch to StateReadError,
+	// not every poll, to keep SD writes low while the gauge is unplugged.
+	switch m.errCount {
+	case 1:
+		m.logf("battery: read failed: %v", err)
+	case ReadErrorThreshold:
+		m.logf("battery: %d consecutive reads failed, state %s: %v", m.errCount, StateReadError, err)
+	}
 	d := m.policy.Evaluate(Reading{}, err, m.trend.Trend(), uptime)
 
 	m.mu.Lock()
@@ -255,6 +265,9 @@ func (m *Monitor) pollFailed(ctx context.Context, err error, uptime time.Duratio
 }
 
 func (m *Monitor) pollOK(ctx context.Context, r Reading, uptime time.Duration) {
+	if m.errCount > 0 {
+		m.logf("battery: reads recovered after %d failed", m.errCount)
+	}
 	m.errCount = 0
 	trend := m.trend.UpdateAt(r.CRate, r.Time)
 	d := m.policy.Evaluate(r, nil, trend, uptime)

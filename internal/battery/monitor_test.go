@@ -217,6 +217,13 @@ func TestMonitorReadErrorTransitions(t *testing.T) {
 		good(49, 3.8, -2),
 	}}
 	h := newHarness(t, g, nil, nil)
+	var logMu sync.Mutex
+	var logs []string
+	h.m.logf = func(format string, args ...any) {
+		logMu.Lock()
+		logs = append(logs, fmt.Sprintf(format, args...))
+		logMu.Unlock()
+	}
 	h.start()
 
 	s := h.m.Status()
@@ -241,6 +248,24 @@ func TestMonitorReadErrorTransitions(t *testing.T) {
 	h.step()
 	if s := h.m.Status(); s.State != StateOK || s.Err != "" || s.Reading.SOC != 49 {
 		t.Fatalf("after recovery: %+v", s)
+	}
+
+	// One line when the streak starts, one at ReadError, one on recovery;
+	// the second failure is not logged.
+	logMu.Lock()
+	defer logMu.Unlock()
+	want := []string{
+		"battery: read failed: bus error",
+		"battery: 3 consecutive reads failed, state Read error: implausible voltage",
+		"battery: reads recovered after 3 failed",
+	}
+	if len(logs) != len(want) {
+		t.Fatalf("logs = %q, want %d lines", logs, len(want))
+	}
+	for i, w := range want {
+		if !strings.HasPrefix(logs[i], w) {
+			t.Errorf("log %d = %q, want prefix %q", i, logs[i], w)
+		}
 	}
 }
 
