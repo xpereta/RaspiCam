@@ -108,9 +108,20 @@ I2C transport:
   STATUS once. Unexpected VERSION (not `0x001x`) logs a warning but does not
   fail. `RI` set marks the gauge as `ResetSeen` (used by phase 2).
 - No writes to the chip (Q5). The chip's auto-hibernate stays at defaults.
-- Concurrency: only the monitor goroutine calls `Read` (BAT-FR-5). Each
-  `Read` is bounded by a 200ms timeout via `ctx`; the ioctl itself is
-  blocking, so the check happens before each transaction.
+- Concurrency: only the monitor goroutine calls `Read` (BAT-FR-5).
+- Timeout (BAT-FR-5): the `I2C_RDWR` ioctl blocks and cannot be interrupted
+  by a Go `context`, so the bound comes from the kernel, not from `ctx`. The
+  Linux I2C core gives every adapter a transfer timeout (`adap->timeout`,
+  1s by default, used by `i2c-bcm2835`); a stalled transfer fails with
+  `ETIMEDOUT` (or `EREMOTEIO` on NAK) and `Read` returns that error. Worst
+  case per poll is about 2s (two transactions). The spec does not change
+  the timeout with the `I2C_TIMEOUT` ioctl, because it applies to the whole
+  adapter (other devices on the bus). `ctx` is still checked before each
+  transaction so shutdown of the process is not delayed by a new read.
+- A `Read` that returns after more than 500ms is treated as a read error
+  even if it succeeded, since a slow bus is not trustworthy.
+- If the kernel never returns (driver bug), the monitor goroutine is stuck;
+  this is made visible by the `Stale` state (3.4) rather than prevented.
 
 ### 3.2 Trend (BAT-FR-6)
 
@@ -161,8 +172,14 @@ func (p *Policy) Evaluate(r Reading, readErr error, trend Trend, uptime time.Dur
 ```
 
 Rules, in order:
-1. `readErr != nil` or `plausible(r) != nil`: `lowCount` unchanged, no
-   shutdown. A read error never counts as low (BAT-FR-10).
+1. `readErr != nil` or `plausible(r) != nil`: `lowCount = 0`, no shutdown
+   (the latch, if already set, is kept). A read error never counts as low and
+   breaks any run of low readings, so shutdown needs `RequiredSamples`
+   consecutive valid low readings with nothing in between (BAT-FR-10).
+   Example at the default of 3: `low, error, low, error, low` does not
+   trigger; `low, low, low` does. This deliberately favors not shutting down
+   on unreliable data, consistent with BAT-FR-12; frequent errors show as
+   `ReadError` in the UI.
 2. `uptime < GracePeriod`: level computed, `lowCount = 0`, no shutdown. The
    grace period is measured from system boot, not from UI start, so a UI
    crash and restart at low battery does not add another grace period.
@@ -181,11 +198,11 @@ Shutdown latency at defaults: 3 samples x 30s = 90s (BAT-NFR-7).
 ### 3.4 Monitor (BAT-FR-7, BAT-FR-8, BAT-FR-12, BAT-NFR-2, BAT-NFR-3, BAT-NFR-8, Q1)
 
 ```go
-type State int // StateDisabled, StateNotDetected, StateReadError, StateOK
+type State int // StateDisabled, StateNotDetected, StateReadError, StateStale, StateOK
 
 type Status struct {
     State     State
-    Err       string    // reason for NotDetected / ReadError
+    Err       string    // reason for NotDetected / ReadError / Stale
     Reading   Reading   // last good reading
     ReadAt    time.Time // time of last good reading
     Trend     Trend
@@ -200,9 +217,14 @@ type Sink interface {
 
 type Monitor struct { /* gauge, policy, trend, sinks, shutdown, mu, status */ }
 
-// uptime returns system uptime (system.Uptime in main, a fake in tests).
+// MonitorClock is injected so tests control time.
+type MonitorClock struct {
+    Now    func() time.Time              // time.Now in main
+    Uptime func() (time.Duration, error) // system.Uptime in main
+}
+
 func NewMonitor(g Gauge, p *Policy, sd *Shutdown, interval time.Duration,
-    uptime func() (time.Duration, error), sinks ...Sink) *Monitor
+    clock MonitorClock, sinks ...Sink) *Monitor
 func (m *Monitor) Run(ctx context.Context)    // blocks until ctx done
 func (m *Monitor) Status() Status             // RWMutex-protected copy
 ```
@@ -210,6 +232,13 @@ func (m *Monitor) Status() Status             // RWMutex-protected copy
 - `Run` reads once immediately, then on a single `time.Ticker`.
 - After 3 consecutive read errors the state becomes `ReadError` (UI shows
   the error); a successful read restores `StateOK`.
+- `Status()` reports `StateStale` when the monitor is running and the last
+  completed poll (success or error) is older than 3 poll intervals, for
+  example because a read never returned. The check uses the monitor's
+  injected clock, so it works even when the monitor goroutine is blocked.
+  The UI shows the readings as stale with their age. A stale gauge never
+  triggers a shutdown (no new readings reach the policy), the same as a
+  missing gauge (BAT-FR-12).
 - If the gauge was never detected, `Run` is not started; `Status()` returns
   `StateNotDetected` with the open error, or `StateDisabled` when
   `BATTERY_ENABLED=false`. In both cases no shutdown can trigger
@@ -571,8 +600,8 @@ All tests run without hardware (`go test ./...` on macOS and Linux).
 | Decoding | table tests for VCELL/SOC/CRATE incl. 0, max, negative CRATE, datasheet examples |
 | Plausibility | out-of-range volts and SOC rejected |
 | Trend | dead band, 2-sample switch, noise around the band |
-| Policy | grace period by uptime (incl. UI restart after grace), charging suppression and latch clear, N consecutive, reset on recovery, read errors never count, latch, volts-only and SOC-only triggers |
-| Monitor | fake gauge, injected `tick <-chan time.Time` and uptime func, read-error state transitions, power-off failure retried on next tick, no retry after success |
+| Policy | grace period by uptime (incl. UI restart after grace), charging suppression and latch clear, N consecutive, reset on recovery, read errors and implausible readings reset the count (`low, error, low, error, low` does not trigger), latch kept across errors, volts-only and SOC-only triggers |
+| Monitor | fake gauge, injected `tick <-chan time.Time`, clock and uptime func, read-error state transitions, slow read (> 500ms) counted as error, `Stale` after 3 intervals with a blocked fake gauge, power-off failure retried on next tick, no retry after success |
 | Shutdown | ordering (log before flush before power), dry run never calls power, second call rejected while in progress, guard released and no duplicate log entry after power-off failure |
 | Shutdown log | append keeps last 10, corrupt lines skipped, atomic rewrite, newest first |
 | Config | defaults, each invalid value replaced with warning, `SHUTDOWN_SOC < LOW_SOC`, poll interval < 10s rejected |
