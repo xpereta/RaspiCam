@@ -2,7 +2,8 @@
 
 ## Status
 Draft. Two phases:
-- Phase 1: live battery readings and low-battery safe shutdown.
+- Phase 1: live battery readings and low-battery safe shutdown. Status:
+  implemented on feat/battery-monitor-impl (pending hardware acceptance).
 - Phase 2: battery history and charge/discharge statistics (see
   "Phase 2: Battery History and Statistics").
 
@@ -177,7 +178,9 @@ pack is exhausted.
   - `BATTERY_SHUTDOWN_SOC` (default `5`).
   - `BATTERY_SHUTDOWN_VOLTS` (default `3.30`).
   - `BATTERY_SHUTDOWN_SAMPLES` (default `3`).
+  - `BATTERY_GRACE_PERIOD` (default `2m`).
   - `BATTERY_SHUTDOWN_DRY_RUN` (default `false`).
+  - `STATE_DIR` (default `$STATE_DIRECTORY`, else `/var/lib/raspicam`).
 - BAT-FR-16: Validate configuration at startup (ranges, `SHUTDOWN_SOC <
   LOW_SOC`, sane voltage). Invalid values are logged and replaced by defaults
   rather than crashing the UI.
@@ -308,7 +311,8 @@ not change its shutdown behavior.
 #### Configuration
 - BAT-H-FR-16: Environment variables (names finalized in the spec):
   - `BATTERY_HISTORY_ENABLED` (default `true` when the gauge is detected).
-  - `BATTERY_HISTORY_DIR` (default `/var/lib/raspicam/battery`).
+  - No separate directory variable: history lives under `STATE_DIR`
+    (`<state dir>/battery`, default `/var/lib/raspicam/battery`).
   - `BATTERY_HISTORY_SAMPLE_INTERVAL` (default `60s`, minimum `30s`).
   - `BATTERY_HISTORY_FLUSH_INTERVAL` (default `15m`).
   - `BATTERY_HISTORY_MAX_SIZE` (default `10MB`).

@@ -87,7 +87,14 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - WiFi SSID, data rate, and link quality.
   - MediaMTX service status.
   - MediaMTX stream state if exposed by Control API.
+  - Battery status from a MAX17048 fuel gauge (voltage, SOC, trend, time
+    remaining, level), the auto-shutdown thresholds and the last 10
+    shutdowns.
 - Provides configuration editing for a limited set of parameters (TBD).
+- Low-battery auto-shutdown: powers the Pi off cleanly at a configurable SOC
+  or voltage, with a dry-run mode (see `PRD_BATTERY_MONITOR.md`).
+- Power-off button (`POST /power-off` with `confirm=yes`); disabled when the
+  service user is not permitted to power off.
 - Configuration changes (`POST /camera-config`) reject cross-origin requests
   with `403 Forbidden` to prevent cross-site request forgery:
   - Accepted when `Sec-Fetch-Site` is `same-origin` or `none`.
@@ -95,6 +102,7 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
     request host.
   - Requests with neither header (non-browser clients such as curl) are
     accepted.
+- `POST /power-off` applies the same cross-origin check.
 - Uses MediaMTX Control API when available:
   - https://mediamtx.org/docs/usage/control-api
   - https://mediamtx.org/docs/references/control-api
