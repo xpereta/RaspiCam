@@ -66,6 +66,10 @@ powers the Pi off cleanly; a dry-run mode only logs. Wiring, I2C, permissions
 and calibration are in `SYSTEM.md` ("Battery Monitoring (MAX17048)"); design
 in `PRD_BATTERY_MONITOR.md` and `SPEC_BATTERY_MONITOR.md`.
 
+Before relying on auto-shutdown, measure the UPS module's cutoff voltage and
+set `BATTERY_SHUTDOWN_VOLTS` above it; the test procedure is in `SYSTEM.md`
+("Finding the Cutoff Voltage").
+
 Power tip: the 18650 UPS charge/boost module draws about 25mA on its own.
 Desoldering its output indicator LED saves more than 10mA (seller spec). That
 is about 2% while streaming (roughly 10-15 extra minutes per charge), and a
