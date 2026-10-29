@@ -250,7 +250,8 @@ func (m *Monitor) Status() Status             // RWMutex-protected copy
   the Pi running until the cells die. `ErrShutdownInProgress` and dry-run
   completion stop further calls until the latch clears.
 - Sinks are called synchronously on the monitor goroutine and must use their
-  own lock; `Shutdown` may call a sink's `Flush` from the same goroutine, so
+  own lock; `Shutdown` may call a sink's `Flush` or `FinalizeShutdown` from
+  the same goroutine, so
   sinks must not call back into the monitor.
 - The UI reads `Status()` only; page loads never cause I2C reads
   (BAT-FR-7, BAT-NFR-7).
@@ -277,13 +278,22 @@ type PowerOff interface {
     PowerOff(ctx context.Context) error
 }
 
+// Flusher writes buffered data to disk. It never changes session state, so
+// it is safe in dry run and on every exit.
 type Flusher interface {
     Flush(ctx context.Context) error
 }
 
-type Shutdown struct { /* log *ShutdownLog, power PowerOff, flushers, dryRun, once */ }
+// ShutdownFinalizer closes open state (the phase 2 history session) because
+// the Pi is really about to power off. Never called in dry run.
+type ShutdownFinalizer interface {
+    FinalizeShutdown(ctx context.Context, ev Event) error
+}
 
-func NewShutdown(log *ShutdownLog, power PowerOff, dryRun bool, flushers ...Flusher) *Shutdown
+type Shutdown struct { /* log *ShutdownLog, power PowerOff, flushers, finalizers, dryRun, guard */ }
+
+func NewShutdown(log *ShutdownLog, power PowerOff, dryRun bool,
+    flushers []Flusher, finalizers []ShutdownFinalizer) *Shutdown
 func (s *Shutdown) Execute(ctx context.Context, ev Event) error
 func (s *Shutdown) Pending() bool
 ```
@@ -297,11 +307,18 @@ func (s *Shutdown) Pending() bool
 2. `log.Printf` with reason, threshold, voltage, SOC, client, dry run.
 3. Append the event to the shutdown log (fsync before continuing). On a
    retry after a failed power-off, the event is not appended again.
-4. Run all flushers (phase 2 history) with a 5s total timeout; errors are
-   logged, not fatal. Flushers must be idempotent: systemd will SIGTERM the
-   UI during poweroff and the normal exit path flushes again.
-5. Dry run: stop here. Real: `power.PowerOff(ctx)`. `systemctl poweroff`
-   returns once the job is queued; systemd then stops the UI with SIGTERM.
+4. Dry run: run all flushers (buffered samples only) and stop here. No
+   finalizer runs, so the open history session stays open and the ongoing
+   calibration discharge is neither split nor counted as a completed cycle.
+   The dry-run event is recorded only in the shutdown log.
+5. Real: run all finalizers (close the open session with the shutdown
+   reason), then all flushers, with a 5s total timeout; errors are logged,
+   not fatal. Both must be idempotent: on a retry after a failed power-off
+   they run again, and systemd will SIGTERM the UI during poweroff so the
+   normal exit path flushes again. If power-off keeps failing, the session
+   stays closed and the next history sample starts a new one.
+6. Real: `power.PowerOff(ctx)`. `systemctl poweroff` returns once the job is
+   queued; systemd then stops the UI with SIGTERM.
 
 `Execute` uses its own context (`context.Background()` with a 15s timeout),
 never a request context, so it is not cancelled when the HTTP response
@@ -450,7 +467,8 @@ Status page: a new Battery card (`templates/battery_card.html`, included by
    `CanPowerOff`.
 4. If enabled: `OpenBus` + `NewMAX17048`. On error: log, keep a
    not-detected status provider.
-5. Phase 2: build the history recorder (a `Sink` and a `Flusher`).
+5. Phase 2: build the history recorder (a `Sink`, `Flusher` and
+   `ShutdownFinalizer`).
 6. `NewShutdown`, `NewPolicy`, `NewMonitor`; `go monitor.Run(ctx)`.
 7. HTTP server in a goroutine; on `ctx.Done()`: `httpServer.Shutdown` with
    5s timeout, then flush history, close the bus.
@@ -483,10 +501,15 @@ about 6-7 months):
 Integers only: parsing is strict and allocation-light.
 
 Write rules:
-- Samples are buffered in a fixed-capacity slice (default flush 15m / 60s =
-  15 entries; capacity 64 to cover config ranges).
+- Samples are buffered in a slice allocated once at startup with capacity
+  `ceil(FlushInterval / SampleInterval) + 4` (default 15m / 60s = 15, so 19;
+  largest allowed combination 1h / 30s = 120, so 124, about 6 KB). The
+  capacity is derived from the validated intervals, so a full batch always
+  fits and the buffer never grows. As a safety net, if the buffer is full
+  anyway (e.g. delayed ticker), it is flushed early rather than dropping
+  samples.
 - Flush triggers: flush interval ticker, session change, `Flush()` from the
-  shutdown coordinator, clean exit. One `open(O_APPEND)`, one write, one
+  shutdown coordinator (real and dry run), clean exit. One `open(O_APPEND)`, one write, one
   `fsync`, close per flush (BAT-H-NFR-1).
 - Retention after each flush: if the total size of `samples-*.csv` exceeds
   `MaxSize`, delete oldest files until it fits; today's file is never
@@ -543,9 +566,13 @@ func (d *Detector) Close(reason string, s Sample) *Session
 - Idle periods are not sessions. Sessions shorter than 5 minutes are
   dropped.
 - `full`: charging session ends with SOC >= 98 and trend idle.
-- Shutdown: the coordinator's `Flush` closes the open session with
-  `low_battery_shutdown` or `manual_shutdown` (the reason is passed via the
-  Flusher call context, see task P2-5).
+- Shutdown: only a real shutdown closes the open session, through the
+  recorder's `FinalizeShutdown(ctx, ev)` (3.5), with `low_battery_shutdown`
+  or `manual_shutdown` taken from `ev.Reason`. `Flush` never closes a
+  session. In dry run the session stays open, so a calibration discharge is
+  not split and is not counted as a completed full cycle (4.5).
+  `FinalizeShutdown` is a no-op if no session is open or it is already
+  closed.
 - Resume (BAT-H-FR-8): at startup, load `open-session.json`. If the first new
   sample is within 10 minutes of its last sample (wall time, or uptime when
   same boot), continue it; otherwise close it with `unknown` (or `reboot`
@@ -602,13 +629,13 @@ All tests run without hardware (`go test ./...` on macOS and Linux).
 | Trend | dead band, 2-sample switch, noise around the band |
 | Policy | grace period by uptime (incl. UI restart after grace), charging suppression and latch clear, N consecutive, reset on recovery, read errors and implausible readings reset the count (`low, error, low, error, low` does not trigger), latch kept across errors, volts-only and SOC-only triggers |
 | Monitor | fake gauge, injected `tick <-chan time.Time`, clock and uptime func, read-error state transitions, slow read (> 500ms) counted as error, `Stale` after 3 intervals with a blocked fake gauge, power-off failure retried on next tick, no retry after success |
-| Shutdown | ordering (log before flush before power), dry run never calls power, second call rejected while in progress, guard released and no duplicate log entry after power-off failure |
+| Shutdown | ordering (log, then finalize, then flush, then power), dry run flushes but never finalizes or calls power, second call rejected while in progress, guard released and no duplicate log entry after power-off failure |
 | Shutdown log | append keeps last 10, corrupt lines skipped, atomic rewrite, newest first |
 | Config | defaults, each invalid value replaced with warning, `SHUTDOWN_SOC < LOW_SOC`, poll interval < 10s rejected |
 | Power | `busctl` output parsing (`s "yes"`, `s "no"`, `s "challenge"`, garbage) |
 | Web | battery card in each state, `/power-off` method, missing confirm, not permitted, dry run, in progress, success renders shutdown page and calls fake requester; `sameOrigin` accepts same-origin/none/matching Origin and rejects cross-site |
-| History store | sample line format/parse, corrupt lines, flush batching count, retention by size keeps today, low disk skip |
-| Sessions | start/end hysteresis, short sessions dropped, full detection, resume same boot, resume across reboot, gap closes as unknown |
+| History store | sample line format/parse, corrupt lines, flush batching count, buffer capacity derived from intervals (default 19, max 1h/30s = 124) with no growth, early flush when full, retention by size keeps today, low disk skip |
+| Sessions | start/end hysteresis, short sessions dropped, full detection, resume same boot, resume across reboot, gap closes as unknown, dry-run shutdown leaves the session open and not counted as full, real shutdown closes it once (idempotent) |
 | Off-line charge | inferred record, threshold, RI low confidence, unsynced unreliable |
 | Stats | averages exclude inferred and unreliable, last-5 window |
 | SVG | downsampling bounds, scaling to viewBox |
@@ -653,7 +680,7 @@ Phase 2:
 | P2-2 | `history/store.go`: sample format, buffered flush, retention, low disk; tests | BAT-H-FR-2..5, BAT-H-NFR-1, 2 |
 | P2-3 | `history/session.go`: detector, resume; tests | BAT-H-FR-6..8, 9a |
 | P2-4 | `history/offline.go`: inferred charge; tests | BAT-H-FR-9 |
-| P2-5 | `history/recorder.go`: `Sink` + `Flusher`, shutdown reason passing; wiring | BAT-H-FR-1, 2 |
+| P2-5 | `history/recorder.go`: `Sink` + `Flusher` + `ShutdownFinalizer`; wiring | BAT-H-FR-1, 2 |
 | P2-6 | `history/stats.go`; tests | BAT-H-FR-12, BAT-H-NFR-3 |
 | P2-7 | `web`: `/battery`, SVG chart, downloads, reset; tests | BAT-H-FR-12..15 |
 | P2-8 | Docs and on-Pi AC-H checklist | - |
@@ -666,6 +693,3 @@ P1-9. Phase 2 starts after P1-9.
   the real chip during P1-2).
 - `BATTERY_HISTORY_SAMPLE_INTERVAL` must be a multiple of the poll interval;
   if not, it is rounded up and a warning is logged.
-- How the shutdown reason reaches the recorder's `Flush`: either a
-  `FlushForShutdown(ctx, reason)` method on a separate interface, or the
-  coordinator sets it on the recorder first. Decide in P2-5.
