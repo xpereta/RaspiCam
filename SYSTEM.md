@@ -314,10 +314,16 @@ What you need:
    the Pi losing power (journald on the Pi may not have synced its last
    lines to disk, so `journalctl -b -1` after the next boot can miss them):
    ```
-   ssh pi@<pi-host> 'journalctl -u raspicam-ui -f -o short-iso' | tee cutoff-$(date +%Y%m%d).log
+   while true; do ssh -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=5 pi@<pi-host> 'journalctl -f -o short-iso | grep --line-buffered -Ei "raspicam-ui|voltage"'; echo "--- ssh lost $(date +%FT%T)"; sleep 5; done | tee cutoff-$(date +%Y%m%d).log
    ```
-   Each poll appears as
-   `battery: reading volts=3.912 soc=64.2 crate=-11.85 trend=discharging level=OK`.
+   - Each poll appears as
+     `battery: reading volts=3.912 soc=64.2 crate=-11.85 trend=discharging level=OK`.
+   - The keep-alive options make a dead link show up as `--- ssh lost` within
+     about 15s, which timestamps the power loss.
+   - The loop reconnects if the Pi reboots instead of staying off (see
+     "Brownout" below), and the `voltage` match also keeps the kernel's
+     `Undervoltage detected!` lines.
+   - Keep the Pi in Wi-Fi range and stationary for the whole run.
 
 #### Method A: full discharge (real load, recommended)
 1. Charge fully with the Pi off, then boot it and unplug the charger.
@@ -326,14 +332,24 @@ What you need:
 3. Wait. Around the configured threshold the log also shows
    `battery: shutdown requested: reason=low_battery ... dry_run=true` and
    `battery: dry run, not powering off`; this is expected, keep going.
-4. When the module cuts its output the SSH session freezes or drops. Note
-   the time.
+4. When the module cuts its output the log stops and `--- ssh lost`
+   appears. Note the time.
 5. Read the last readings from the local file:
    ```
-   grep 'battery: reading' cutoff-*.log | tail -n 5
+   grep -E 'battery: reading|ssh lost|[Uu]ndervoltage' cutoff-*.log | tail -n 30
    ```
    The last `volts=` value is the cutoff voltage under load (accurate to one
-   poll interval). Also note the last `soc=` and the run time from step 2.
+   poll interval). Also note the last `soc=`, the run time from step 2, and
+   the voltage about 3 minutes before the cutoff (needed for the threshold).
+   - Failed gauge reads are not logged. If the `reading` lines stop well
+     before `ssh lost`, the gauge stopped answering first, and the last
+     reading is only an upper bound for the cutoff; the Battery card shows
+     `Read error` in that case.
+   - Brownout: if `Undervoltage detected!` lines appear, or the Pi reboots
+     and the log resumes after an `ssh lost` line, the boost converter could
+     not hold 5 V under load before the module's protection tripped. Use the
+     last reading before the first undervoltage warning or reboot as the
+     cutoff: that is where the Pi stops being reliable.
 6. Optional: measure the cells with a multimeter right after the cutoff.
    They rebound once unloaded, so expect a higher value than the log; use
    the logged value for the threshold.
@@ -348,30 +364,51 @@ What you need:
 2. Boot the Pi and start the camera stream.
 3. Lower the supply in 0.05 V steps, waiting at least two polls (20s) per
    step. Below about 3.4 V use 0.02 V steps.
-4. Note the supply voltage at which the Pi loses power, and compare it with
-   the last `volts=` in the log (the difference is the wiring drop between
-   supply and gauge).
-5. The supply holds its voltage under load, while real cells sag more, so
-   treat this result as optimistic and confirm it with Method A when you can.
+4. Note the supply voltage at which the Pi loses power or the first
+   `Undervoltage detected!` appears, and compare it with the last `volts=`
+   in the log (the difference is the wiring drop between supply and gauge).
+5. The module latches off after a protection trip until a charger is
+   connected, so each run gives one measurement; disconnect the bench supply
+   before connecting a charger.
+6. The supply holds its voltage under load, while real cells sag more, and
+   this method says nothing about how fast the voltage falls near empty, so
+   it cannot set the timing margin below. Treat the result as optimistic and
+   confirm it with Method A when you can.
+7. After reinstalling the cells, charge fully before relying on SOC.
 
 #### Set the threshold
-1. `BATTERY_SHUTDOWN_VOLTS` = cutoff voltage + at least 0.15 V (margin for
-   load spikes and cell aging). Example: cutoff at 3.05 V -> 3.20 V. Values
-   must stay within the valid range in the table above.
-2. If the last SOC before the cutoff was well above 0%, raise
+1. The shutdown must finish before the cutoff. With the defaults it takes up
+   to about 2 minutes from the first reading under the threshold: up to one
+   poll (30s) to see it, two more polls (60s) to confirm 3 readings, then the
+   OS shutdown (about 15-30s). Near empty the voltage falls fastest, so the
+   threshold must be at least the higher of:
+   - the cutoff voltage + 0.15 V (load spikes, cell aging), and
+   - the voltage logged about 3 minutes before the cutoff in Method A.
+   Example: cutoff at 3.05 V, 3.28 V three minutes earlier -> 3.30 V.
+   Calibration polled every 10s; normal use polls every 30s, which is why the
+   margin is measured in time, not polls. If you change
+   `BATTERY_POLL_INTERVAL` or `BATTERY_SHUTDOWN_SAMPLES`, scale the 3 minutes
+   to (samples x interval) + 1 minute.
+2. Valid values are 3.00-3.80 V; out of range, the setting is ignored with a
+   startup warning (`config: ...` in the log) and 3.30 V is used. If the rule
+   above gives less than 3.00 V, use 3.00 V; the cells hold little charge
+   below 3.3 V, so this costs only a few minutes of run time.
+3. If the last SOC before the cutoff was well above 0%, raise
    `BATTERY_SHUTDOWN_SOC` too (the gauge's SOC is less reliable near empty
    on a new pack; it improves after a few full cycles).
-3. Remove the two calibration lines (or set
+4. Remove the two calibration lines (or set
    `BATTERY_SHUTDOWN_DRY_RUN=false`), add the new thresholds, then reload and
-   restart the service.
+   restart the service. Check the startup log for `config:` warnings, and
+   check that the Battery card no longer shows `(dry run)`.
 
 #### Verify (real shutdown)
 1. Run one more discharge with dry run off and the camera streaming, still
    logging over SSH.
 2. Expected: `battery: shutdown requested: reason=low_battery` and a clean
-   power-off before the module cuts the output. After recharging and
-   booting, the Battery card's shutdown log lists a `low_battery` entry with
-   the voltage and SOC.
+   power-off before the module cuts the output (no `Undervoltage detected!`
+   before it). After recharging and booting, the Battery card's shutdown log
+   lists a `low battery (voltage)` or `low battery (SOC)` entry with the
+   voltage and SOC.
 3. If the module still cuts first, raise `BATTERY_SHUTDOWN_VOLTS` by 0.05 V
    and repeat.
 

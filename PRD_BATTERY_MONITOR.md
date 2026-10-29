@@ -500,7 +500,9 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
 - Q7 (resolved): The module has over-discharge protection, but the cutoff
   voltage is not documented. Keep 3.30V for now; during the Q3 dry-run
   discharge, record the voltage at which the module cuts its output, then set
-  the shutdown voltage with a margin above it (at least 0.15V for load sag).
+  the shutdown voltage with a margin above it (at least 0.15V for load sag,
+  and high enough that the confirm-and-shutdown time, about 2 minutes, ends
+  before the cutoff; procedure in `SYSTEM.md`).
   After a low-battery shutdown, the module (about 25mA) and the halted Pi keep
   draining the pack until the module's own cutoff trips; this is expected.
 
