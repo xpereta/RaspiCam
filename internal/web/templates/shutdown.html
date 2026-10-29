@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RaspiCam Shutting Down</title>
+    <style>
+      :root {
+        --ink: #1f1a16;
+        --muted: #6b5b4c;
+        --paper: #f5f0e8;
+        --card: #fffdf9;
+        --line: #e6dccd;
+        --warn: #9a6b1a;
+      }
+      body {
+        font-family: "IBM Plex Sans", "Source Sans 3", "Segoe UI", sans-serif;
+        margin: 0;
+        color: var(--ink);
+        background: radial-gradient(1200px 500px at 20% -10%, #fff6e6 0%, var(--paper) 60%, #efe6d9 100%);
+      }
+      .wrap { max-width: 860px; margin: 40px auto 60px; padding: 0 20px; }
+      h1 { margin: 0 0 6px; font-weight: 600; letter-spacing: -0.5px; }
+      .card { padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+      .section-title { font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+      .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+      .notice.warn { background: #fff4e1; color: var(--warn); border: 1px solid #f0d7a3; }
+      .label { color: var(--muted); font-size: 13px; margin-top: 12px; }
+      a { color: var(--ink); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>RaspiCam</h1>
+      <div class="card">
+        <div class="section-title">Power off</div>
+        <div class="notice warn">Shutting down. Wait for the green activity LED to stop blinking before cutting power.</div>
+        <div class="label">If the Pi is still running after a minute, check the journal or <a href="/">return to the status page</a>.</div>
+      </div>
+    </div>
+  </body>
+</html>
