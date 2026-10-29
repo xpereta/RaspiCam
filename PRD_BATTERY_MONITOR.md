@@ -2,7 +2,8 @@
 
 ## Status
 Draft. Two phases:
-- Phase 1: live battery readings and low-battery safe shutdown.
+- Phase 1: live battery readings and low-battery safe shutdown. Status:
+  implemented on feat/battery-monitor-impl (pending hardware acceptance).
 - Phase 2: battery history and charge/discharge statistics (see
   "Phase 2: Battery History and Statistics").
 
@@ -177,14 +178,16 @@ pack is exhausted.
   - `BATTERY_SHUTDOWN_SOC` (default `5`).
   - `BATTERY_SHUTDOWN_VOLTS` (default `3.30`).
   - `BATTERY_SHUTDOWN_SAMPLES` (default `3`).
+  - `BATTERY_GRACE_PERIOD` (default `2m`).
   - `BATTERY_SHUTDOWN_DRY_RUN` (default `false`).
+  - `STATE_DIR` (default `$STATE_DIRECTORY`, else `/var/lib/raspicam`).
 - BAT-FR-16: Validate configuration at startup (ranges, `SHUTDOWN_SOC <
   LOW_SOC`, sane voltage). Invalid values are logged and replaced by defaults
   rather than crashing the UI.
 
 ## Non-Functional Requirements
 - BAT-NFR-1: Standard library only. I2C access uses `/dev/i2c-*` with the
-  `I2C_SLAVE` ioctl via `syscall`; adding `golang.org/x/sys` requires
+  `I2C_RDWR` ioctl via `syscall`; adding `golang.org/x/sys` requires
   justification in the spec.
 - BAT-NFR-2: Negligible CPU and memory: one small read every poll interval, no
   allocations in the steady-state polling loop beyond trivial ones.
@@ -308,7 +311,8 @@ not change its shutdown behavior.
 #### Configuration
 - BAT-H-FR-16: Environment variables (names finalized in the spec):
   - `BATTERY_HISTORY_ENABLED` (default `true` when the gauge is detected).
-  - `BATTERY_HISTORY_DIR` (default `/var/lib/raspicam/battery`).
+  - No separate directory variable: history lives under `STATE_DIR`
+    (`<state dir>/battery`, default `/var/lib/raspicam/battery`).
   - `BATTERY_HISTORY_SAMPLE_INTERVAL` (default `60s`, minimum `30s`).
   - `BATTERY_HISTORY_FLUSH_INTERVAL` (default `15m`).
   - `BATTERY_HISTORY_MAX_SIZE` (default `10MB`).
@@ -400,6 +404,8 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
     upstream of the 5V boost module.
   - `SDA` -> GPIO2 (pin 3), `SCL` -> GPIO3 (pin 5), `GND` -> Pi GND (pin 6).
   - Confirm the breakout's I2C pull-ups/logic level are 3.3V compatible.
+  - Full wiring (diagrams, connection table, ground check, assembly order)
+    is in `SYSTEM.md` ("Wiring").
 - Enable I2C: `sudo raspi-config` -> Interface Options -> I2C (adds
   `dtparam=i2c_arm=on`).
 - Verify: `sudo apt install i2c-tools` then `i2cdetect -y 1` shows `36`.
@@ -480,7 +486,7 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
   `Restart=always` in the systemd unit so a crash only pauses monitoring for a
   few seconds.
 - Q2 (resolved): The gauge is read directly from userspace via `/dev/i2c-1`
-  (standard library, `I2C_SLAVE` ioctl). The kernel `max17040` driver is not
+  (standard library, `I2C_RDWR` ioctl). The kernel `max17040` driver is not
   used: it needs a custom device tree overlay and may not expose `CRATE`.
 - Q3 (resolved): Defaults are 5% SOC / 3.30V as placeholders. Final values
   are set after one full discharge in dry-run mode (BAT-FR-14) with the camera
@@ -496,7 +502,9 @@ Not part of phase 1 or phase 2. Listed so the design leaves room for them.
 - Q7 (resolved): The module has over-discharge protection, but the cutoff
   voltage is not documented. Keep 3.30V for now; during the Q3 dry-run
   discharge, record the voltage at which the module cuts its output, then set
-  the shutdown voltage with a margin above it (at least 0.15V for load sag).
+  the shutdown voltage with a margin above it (at least 0.15V for load sag,
+  and high enough that the confirm-and-shutdown time, about 2 minutes, ends
+  before the cutoff; procedure in `SYSTEM.md`).
   After a low-battery shutdown, the module (about 25mA) and the halted Pi keep
   draining the pack until the module's own cutoff trips; this is expected.
 

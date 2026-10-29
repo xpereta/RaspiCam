@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xpereta/RaspiCam/internal/battery"
 	"github.com/xpereta/RaspiCam/internal/config"
 	"github.com/xpereta/RaspiCam/internal/mediamtx"
 	"github.com/xpereta/RaspiCam/internal/metrics"
@@ -21,11 +22,56 @@ import (
 //go:embed templates/*.html
 var templatesFS embed.FS
 
+// Deps holds the server settings and collaborators. main reads the
+// environment and builds them.
+type Deps struct {
+	MediaMTXURL  string // MediaMTX Control API base URL
+	MediaMTXPath string // MediaMTX path name
+	ConfigPath   string // MediaMTX config file
+
+	// Battery reports the battery status. A nil value is replaced by a
+	// disabled status.
+	Battery BatteryStatusProvider
+	// Shutdown runs manual power off requests. When nil, power off is
+	// unavailable.
+	Shutdown ShutdownRequester
+	// ShutdownLog lists past shutdowns. When nil, none are shown.
+	ShutdownLog ShutdownLister
+
+	CanPowerOff  bool   // power off permitted (checked once at startup)
+	PowerOffNote string // reason shown when CanPowerOff is false
+	DryRun       bool   // shutdowns are logged only
+
+	ShutdownSOC   float64 // shown in the auto-shutdown line
+	ShutdownVolts float64 // shown in the auto-shutdown line
+
+	// Warnings are configuration warnings shown with the page warnings.
+	Warnings []string
+
+	// powerOffDelay runs before a real shutdown starts (default: wait 1s).
+	// Tests replace it so they do not sleep.
+	powerOffDelay func()
+	// now returns the current time (default time.Now).
+	now func() time.Time
+}
+
 type Server struct {
 	tmpl         *template.Template
 	mediamtxURL  string
 	mediamtxPath string
 	configPath   string
+
+	battery       BatteryStatusProvider
+	shutdown      ShutdownRequester
+	shutdownLog   ShutdownLister
+	canPowerOff   bool
+	powerOffNote  string
+	dryRun        bool
+	shutdownSOC   float64
+	shutdownVolts float64
+	warnings      []string
+	powerOffDelay func()
+	now           func() time.Time
 }
 
 type StatusView struct {
@@ -39,6 +85,7 @@ type StatusView struct {
 	Camera      CameraView
 	MediaMTX    MediaMTXView
 	Network     NetworkView
+	Battery     BatteryView
 	Warnings    []string
 }
 
@@ -87,24 +134,47 @@ type CameraView struct {
 	MessageClass string
 }
 
-func NewServer() (*Server, error) {
-	tmpl, err := template.ParseFS(templatesFS, "templates/status.html")
+// NewServer parses the templates and returns a server using deps.
+func NewServer(deps Deps) (*Server, error) {
+	tmpl, err := template.ParseFS(templatesFS, "templates/*.html")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse templates: %w", err)
 	}
 
-	return &Server{
-		tmpl:         tmpl,
-		mediamtxURL:  getEnvDefault("MEDIAMTX_API_URL", "http://127.0.0.1:9997"),
-		mediamtxPath: getEnvDefault("MEDIAMTX_PATH_NAME", "cam"),
-		configPath:   getEnvDefault("MEDIAMTX_CONFIG_PATH", "/usr/local/etc/mediamtx.yml"),
-	}, nil
+	s := &Server{
+		tmpl:          tmpl,
+		mediamtxURL:   deps.MediaMTXURL,
+		mediamtxPath:  deps.MediaMTXPath,
+		configPath:    deps.ConfigPath,
+		battery:       deps.Battery,
+		shutdown:      deps.Shutdown,
+		shutdownLog:   deps.ShutdownLog,
+		canPowerOff:   deps.CanPowerOff,
+		powerOffNote:  deps.PowerOffNote,
+		dryRun:        deps.DryRun,
+		shutdownSOC:   deps.ShutdownSOC,
+		shutdownVolts: deps.ShutdownVolts,
+		warnings:      deps.Warnings,
+		powerOffDelay: deps.powerOffDelay,
+		now:           deps.now,
+	}
+	if s.battery == nil {
+		s.battery = battery.NewDisabledStatus()
+	}
+	if s.powerOffDelay == nil {
+		s.powerOffDelay = func() { time.Sleep(defaultPowerOffDelay) }
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
+	return s, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleStatus)
 	mux.Handle("/camera-config", sameOrigin(http.HandlerFunc(s.handleCameraUpdate)))
+	mux.Handle("/power-off", sameOrigin(http.HandlerFunc(s.handlePowerOff)))
 	return mux
 }
 
@@ -114,13 +184,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, messageClass := cameraMessageFromStatus(r.URL.Query().Get("camera"))
-	view, err := s.buildStatusView(r.Context(), message, messageClass)
+	query := r.URL.Query()
+	message, messageClass := cameraMessageFromStatus(query.Get("camera"))
+	view, err := s.buildStatusView(r.Context(), message, messageClass, query.Get("power"))
 	if err != nil {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
 	}
-	if err := s.tmpl.Execute(w, view); err != nil {
+	if err := s.tmpl.ExecuteTemplate(w, "status.html", view); err != nil {
 		http.Error(w, "template render error", http.StatusInternalServerError)
 	}
 }
@@ -194,7 +265,7 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?camera=saved", http.StatusSeeOther)
 }
 
-func (s *Server) buildStatusView(ctx context.Context, message, messageClass string) (StatusView, error) {
+func (s *Server) buildStatusView(ctx context.Context, message, messageClass, powerStatus string) (StatusView, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -207,6 +278,7 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 	if err != nil {
 		warnings = append(warnings, fmt.Sprintf("Camera update time unavailable: %v", err))
 	}
+	batteryView, batteryWarnings := s.buildBatteryView(powerStatus)
 
 	view := StatusView{
 		GeneratedAt: time.Now().Format("2006-01-02 15:04:05"),
@@ -219,10 +291,24 @@ func (s *Server) buildStatusView(ctx context.Context, message, messageClass stri
 		Camera:      formatCamera(camera, lastUpdated, ok, message, messageClass),
 		MediaMTX:    formatMediaMTX(mtxStatus),
 		Network:     formatNetwork(network),
-		Warnings:    append(warnings, append(append(mtxWarnings, camWarnings...), networkWarnings...)...),
+		Battery:     batteryView,
+		Warnings:    joinWarnings(s.warnings, warnings, mtxWarnings, camWarnings, networkWarnings, batteryWarnings),
 	}
 
 	return view, nil
+}
+
+// joinWarnings concatenates the warning lists into a new slice.
+func joinWarnings(lists ...[]string) []string {
+	n := 0
+	for _, l := range lists {
+		n += len(l)
+	}
+	out := make([]string, 0, n)
+	for _, l := range lists {
+		out = append(out, l...)
+	}
+	return out
 }
 
 func formatMetrics(snap metrics.Snapshot) MetricsView {
@@ -346,13 +432,6 @@ func formatNetwork(snap system.NetworkSnapshot) NetworkView {
 	view.WiFiRate = formatWiFiRate(snap.WiFiTxRate, snap.WiFiRxRate)
 
 	return view
-}
-
-func getEnvDefault(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
 }
 
 func (s *Server) loadCameraConfig() (config.CameraConfig, []string) {
