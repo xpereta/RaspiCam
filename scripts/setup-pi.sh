@@ -152,7 +152,10 @@ info "Model:        $(tr -d '\0' </proc/device-tree/model 2>/dev/null || echo un
 info "Service user: ${RASPICAM_USER}:${RASPICAM_GROUP}"
 info "Repository:   ${REPO_DIR}"
 
-TMP_DIR="$(mktemp -d)"
+# Not /tmp: from Debian 13 (Trixie) /tmp is a RAM-backed tmpfs (half of RAM,
+# about 212 MB on a Zero 2 W), too small for the downloads and the Go build.
+# /var/tmp is on the SD card.
+TMP_DIR="$(mktemp -d -p /var/tmp raspicam-setup.XXXXXX)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # ---------------------------------------------------------------------------
@@ -329,6 +332,8 @@ sudo -u "${RASPICAM_USER}" -H env \
 	PATH="/usr/local/go/bin:/usr/bin:/bin" \
 	HOME="${RASPICAM_HOME}" \
 	GOFLAGS="-p=1" \
+	GOTMPDIR="${BUILD_DIR}" \
+	CGO_ENABLED=0 \
 	sh -c 'cd "$1" && go build -trimpath -ldflags "-s -w" -o "$2.tmp" ./cmd/ui' _ "${REPO_DIR}" "${BUILD_OUT}" ||
 	die "go build failed"
 install -m 0755 "${BUILD_OUT}.tmp" /usr/local/bin/raspicam-ui

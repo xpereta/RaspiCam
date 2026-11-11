@@ -189,6 +189,9 @@ no longer passes `mediamtx --validate-conf`, so you can compare the two.
 ## 8. Manual Setup (What the Script Does)
 
 Run these on the Pi as your normal user (commands use `sudo` where needed).
+Use `/var/tmp`, not `/tmp`, for downloads and builds: from Debian 13 (Trixie)
+`/tmp` is a RAM-backed tmpfs limited to half of RAM (about 212 MB on a Zero
+2 W).
 Replace `pi` with your username. For 64-bit OS use the `arm64` downloads
 instead of `armv6l` (Go) / `armv7` (MediaMTX).
 
@@ -214,7 +217,7 @@ described in https://go.dev/doc/install. For 32-bit ARM, go.dev only
 publishes `armv6l` builds, which also run on the Zero 2 W's ARMv7 userland.
 
 ```
-cd /tmp
+cd /var/tmp
 curl -fsSLO https://dl.google.com/go/go1.27.4.linux-armv6l.tar.gz
 # SHA-256 as listed on https://go.dev/dl/
 echo "e50964c41c6e187375387939e2f380de7250eba44e2259dfeb75c540d9d585c3  go1.27.4.linux-armv6l.tar.gz" | sha256sum -c
@@ -233,7 +236,7 @@ needed for official Raspberry Pi cameras. On 32-bit OS use `linux_armv7`
 ARMv6 boards such as the original Zero).
 
 ```
-cd /tmp
+cd /var/tmp
 V=v1.21.3
 T=mediamtx_${V}_linux_armv7.tar.gz
 curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/$T
@@ -251,7 +254,7 @@ directory, `/usr/local/etc/mediamtx/`. Here it is owned by the UI user:
 
 ```
 sudo install -d -m 0755 -o pi -g pi /usr/local/etc/mediamtx
-cp /tmp/mediamtx/mediamtx.yml /usr/local/etc/mediamtx/mediamtx.yml
+cp /var/tmp/mediamtx/mediamtx.yml /usr/local/etc/mediamtx/mediamtx.yml
 ```
 
 Why a directory and not `/usr/local/etc/mediamtx.yml`: the UI saves changes
@@ -292,19 +295,21 @@ mediamtx --validate-conf /usr/local/etc/mediamtx/mediamtx.yml
 
 ```
 cd ~/RaspiCam
-GOFLAGS=-p=1 go build -trimpath -ldflags "-s -w" -o raspicam-ui ./cmd/ui
+mkdir -p /var/tmp/go-build
+GOFLAGS=-p=1 GOTMPDIR=/var/tmp/go-build CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o raspicam-ui ./cmd/ui
 sudo install -m 0755 raspicam-ui /usr/local/bin/raspicam-ui
 rm raspicam-ui
 ```
 
 `-p=1` sets the number of build programs run in parallel to one (the
 default is the number of CPUs), which lowers peak memory use on the 512 MB
-Zero.
+Zero. `GOTMPDIR` keeps Go's work files out of the small `/tmp` tmpfs.
+`CGO_ENABLED=0` builds a static binary without needing a C compiler.
 
 Alternative: cross-compile on your computer and copy the binary over:
 
 ```
-GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o raspicam-ui ./cmd/ui
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o raspicam-ui ./cmd/ui
 scp raspicam-ui pi@raspicam.local:/tmp/
 ssh -t pi@raspicam.local sudo install -m 0755 /tmp/raspicam-ui /usr/local/bin/raspicam-ui
 ```
@@ -403,6 +408,9 @@ delays with `systemd-analyze blame | head`.
 - **MediaMTX status "unknown" in the UI**: check `api: true` and
   `apiAddress: 127.0.0.1:9997` in the config, and that
   `curl http://127.0.0.1:9997/v3/paths/list` works on the Pi.
+- **Go build fails with "no space left on device" under `/tmp`**: `/tmp` is
+  a small tmpfs on Trixie. Set `GOTMPDIR` to a directory on the SD card
+  (section 8.5); the script does this.
 - **Go build killed / very slow**: likely out of memory. Make sure
   `GOFLAGS=-p=1` is set (the script does this), close other programs, or
   cross-compile (section 8.5).
@@ -446,6 +454,7 @@ Each step was checked against these (versions as of November 2026):
   `vcio_gencmd` and `dma_heap` belong to group `video`.
 - Go: https://go.dev/doc/install, https://go.dev/dl/, `go help build`
   (`-p`), `go help environment` (`GOFLAGS`, `GOARM`).
+- Debian 13 release notes, 5.1.6: `/tmp` is a tmpfs by default.
 - Debian: golang-defaults 1.19 (Bookworm) / 1.24 (Trixie);
   `/etc/profile` sources `/etc/profile.d/*.sh` (base-files).
 - MediaMTX v1.21.3 (https://github.com/bluenviron/mediamtx/tree/v1.21.3):
