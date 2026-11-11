@@ -1,0 +1,16 @@
+[Unit]
+Description=MediaMTX streaming server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# MediaMTX runs as root, as in the upstream start-on-boot guide, so it can
+# open the camera devices. The config lives in its own directory so the UI
+# (running as an unprivileged user) can replace it atomically.
+ExecStart=/usr/local/bin/mediamtx /usr/local/etc/mediamtx/mediamtx.yml
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

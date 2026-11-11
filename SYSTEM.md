@@ -69,7 +69,11 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - UI exposes a simple status page with last update time.
 
 ## Service Management
-- Systemd unit file for the UI lives at `systemd/raspicam-ui.service`.
+- Systemd unit files live in `systemd/` (`raspicam-ui.service`, `mediamtx.service`).
+- `scripts/setup-pi.sh` performs the full install on a fresh Pi; see
+  `RPI_SETUP.md` for the from-scratch guide. The script places the MediaMTX
+  config at `/usr/local/etc/mediamtx/mediamtx.yml` and sets
+  `MEDIAMTX_CONFIG_PATH` accordingly via a systemd drop-in.
 - Follow the same start-on-boot pattern as MediaMTX:
   - Build the UI binary on the Pi:
     ```
@@ -130,7 +134,10 @@ EOF
     journalctl -u raspicam-ui -f
     ```
   - Permissions:
-    - The UI must be able to write `/usr/local/etc/mediamtx.yml`.
+    - The UI must be able to write the MediaMTX config file and its
+      directory: saves write a temp file and a `mediamtx.yml.bak-*` backup
+      next to the config, then rename into place. Hence the dedicated,
+      user-owned `/usr/local/etc/mediamtx/` directory used by the setup script.
     - MediaMTX auto-restarts on file changes; no manual restart required.
 
 ## Environment Variables
