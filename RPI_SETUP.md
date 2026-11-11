@@ -59,7 +59,10 @@ also pre-configures WiFi, user and SSH so the Pi works headless.
      **Raspberry Pi OS Lite (32-bit)**. Lite has no desktop, which saves RAM
      on the 512 MB Zero. (64-bit Lite also works; the script detects it.)
    - **Storage**: your microSD card. Everything on it will be erased.
-4. When asked to apply OS customisation, edit the settings:
+4. Fill in the OS customisation. In Imager 2.x these are wizard steps shown
+   after you pick the storage; in Imager 1.x click Next, answer "Edit
+   settings" to "apply OS customisation settings?", and use the General and
+   Services tabs:
    - **Hostname**: `raspicam` (the Pi will be reachable as `raspicam.local`).
    - **Username and password**: pick your own, for example `pi`. There is no
      default user any more; remember what you choose.
@@ -74,8 +77,9 @@ also pre-configures WiFi, user and SSH so the Pi works headless.
 Alternative without Imager's customisation: download the image from
 https://www.raspberrypi.com/software/operating-systems/, flash it with any
 tool (Imager "Use custom", balenaEtcher, `dd`), then connect a keyboard and
-screen on first boot to create the user and run `sudo raspi-config` to set
-WiFi, hostname and SSH. The rest of this guide is the same.
+screen on first boot (the Zero needs a mini-HDMI adapter and a micro-USB OTG
+adapter) to create the user and run `sudo raspi-config` to set WiFi,
+hostname and SSH. The rest of this guide is the same.
 
 ## 4. First Boot and SSH
 
@@ -133,16 +137,15 @@ It is safe to re-run. When it finishes it prints the URLs:
 - HLS (browser): `http://raspicam.local:8888/cam`
 - RTSP (VLC, ffplay): `rtsp://raspicam.local:8554/cam`
 
-Options:
+Options (`sudo ./scripts/setup-pi.sh --help`):
 
-```
-sudo ./scripts/setup-pi.sh --help
-  --user NAME               user that runs the UI (default: the sudo user)
-  --go-version X.Y.Z        Go toolchain version
-  --mediamtx-version vX.Y.Z MediaMTX release
-  --ui-addr ADDR            UI listen address (default :8080)
-  --skip-apt                skip apt-get update/install
-```
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `--user NAME` | the user that ran `sudo` | runs the UI, owns the MediaMTX config |
+| `--go-version X.Y.Z` | 1.27.4 | Go toolchain version |
+| `--mediamtx-version vX.Y.Z` | v1.21.3 | MediaMTX release |
+| `--ui-addr ADDR` | `:8080` | UI listen address |
+| `--skip-apt` | off | skip `apt-get update`/`install` |
 
 Then reboot once to confirm everything comes back on its own:
 
@@ -160,7 +163,9 @@ sudo ./scripts/setup-pi.sh
 
 The script rebuilds and reinstalls the UI from the current checkout and
 restarts the services. It keeps your existing `mediamtx.yml`. To move to a
-newer MediaMTX, pass `--mediamtx-version`.
+newer MediaMTX, pass `--mediamtx-version`; the script then refreshes
+`mediamtx.yml.dist` with the new upstream defaults and warns if your config
+no longer passes `mediamtx --validate-conf`, so you can compare the two.
 
 ## 8. Manual Setup (What the Script Does)
 
@@ -202,8 +207,11 @@ MediaMTX embeds its own libcamera, so nothing else is needed for the camera.
 ```
 cd /tmp
 V=v1.21.3
-curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/mediamtx_${V}_linux_armv7.tar.gz
-mkdir mediamtx && tar -C mediamtx -xzf mediamtx_${V}_linux_armv7.tar.gz
+T=mediamtx_${V}_linux_armv7.tar.gz
+curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/$T
+curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/checksums.sha256
+grep "$T" checksums.sha256 | sed 's/ \*/  /' | sha256sum -c
+mkdir -p mediamtx && tar -C mediamtx -xzf $T
 sudo install -m 0755 mediamtx/mediamtx /usr/local/bin/mediamtx
 mediamtx --version
 ```
@@ -241,6 +249,12 @@ Edit `/usr/local/etc/mediamtx/mediamtx.yml`:
    `paths.cam`.
 
 The default auth settings already allow API access from `127.0.0.1`.
+
+Check the result:
+
+```
+mediamtx --validate-conf /usr/local/etc/mediamtx/mediamtx.yml
+```
 
 ### 8.5 Build and Install the UI
 
@@ -289,6 +303,13 @@ EOF
   guide) with the config path above.
 - The drop-in sets the UI user and points it at the config. The repo unit
   defaults to `User=pi`; the drop-in overrides it.
+- Security note: MediaMTX runs as root but reads a config the UI user can
+  write, and MediaMTX config can run commands (`runOnInit`, `runOnReady`,
+  ...). Anyone with a shell as that user can therefore run commands as root.
+  On Raspberry Pi OS the first user already has passwordless `sudo`, so this
+  adds nothing there; if you use `--user` with an account that has no sudo
+  rights, be aware of it. The web UI itself only writes the validated
+  `rpiCamera*` keys.
 
 Boot ordering (see `SYSTEM.md`): Raspberry Pi OS uses NetworkManager.
 

@@ -160,8 +160,12 @@ if [[ "${SKIP_APT}" -eq 0 ]]; then
 	# curl/ca-certificates: downloads. git: repo updates. iw: WiFi details in
 	# the UI. rpicam-apps-lite: camera self-test (rpicam-hello).
 	apt-get install -y --no-install-recommends ca-certificates curl git iw
-	apt-get install -y --no-install-recommends rpicam-apps-lite ||
-		warn "rpicam-apps-lite not available; camera self-test will be skipped"
+	# Lite images ship rpicam-apps-lite, Desktop images rpicam-apps; only
+	# install when neither is present.
+	if ! command -v rpicam-hello >/dev/null 2>&1; then
+		apt-get install -y --no-install-recommends rpicam-apps-lite ||
+			warn "rpicam-apps-lite not available; camera self-test will be skipped"
+	fi
 else
 	log "Skipping apt (--skip-apt)"
 fi
@@ -244,12 +248,26 @@ fi
 # ---------------------------------------------------------------------------
 log "MediaMTX config (${MEDIAMTX_CONF})"
 install -d -m 0755 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${MEDIAMTX_CONF_DIR}"
+if [[ "${mtx_fetched}" -eq 1 ]]; then
+	# Keep the pristine upstream file of the installed version next to ours,
+	# to compare against after upgrades.
+	install -m 0644 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" \
+		"${TMP_DIR}/mediamtx/mediamtx.yml" "${MEDIAMTX_CONF_DIR}/mediamtx.yml.dist"
+fi
 if [[ -f "${MEDIAMTX_CONF}" ]]; then
 	info "keeping existing config"
+	grep -qE '^api: (true|yes)$' "${MEDIAMTX_CONF}" ||
+		warn "'api: true' not set; the UI cannot read stream state (see RPI_SETUP.md 8.4)"
+	# Any indent: the UI re-encodes the file with 4-space indentation.
+	grep -qE "^[[:space:]]+${MEDIAMTX_PATH_NAME}:" "${MEDIAMTX_CONF}" ||
+		warn "no paths.${MEDIAMTX_PATH_NAME} entry; the UI camera settings will not work (see RPI_SETUP.md 8.4)"
+	if ! "${MTX_BIN}" --validate-conf "${MEDIAMTX_CONF}" >"${TMP_DIR}/validate.log" 2>&1; then
+		sed 's/^/    /' "${TMP_DIR}/validate.log" >&2
+		warn "existing config is not valid for MediaMTX ${MEDIAMTX_VERSION}; compare with mediamtx.yml.dist"
+	fi
 else
 	fetch_mediamtx
 	src="${TMP_DIR}/mediamtx/mediamtx.yml"
-	# Keep the pristine upstream file next to ours for reference.
 	install -m 0644 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${src}" "${MEDIAMTX_CONF_DIR}/mediamtx.yml.dist"
 
 	grep -q '^api: false$' "${src}" || die "unexpected upstream config: 'api: false' not found"
@@ -267,6 +285,10 @@ paths:
   ${MEDIAMTX_PATH_NAME}:
     source: rpiCamera
 EOF
+	if ! "${MTX_BIN}" --validate-conf "${TMP_DIR}/mediamtx.yml" >"${TMP_DIR}/validate.log" 2>&1; then
+		sed 's/^/    /' "${TMP_DIR}/validate.log" >&2
+		die "generated config failed MediaMTX validation"
+	fi
 	install -m 0644 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${TMP_DIR}/mediamtx.yml" "${MEDIAMTX_CONF}"
 	info "written (upstream defaults + api on 127.0.0.1:9997 + paths.${MEDIAMTX_PATH_NAME})"
 fi
@@ -295,12 +317,15 @@ sudo -u "${RASPICAM_USER}" -H env \
 	sh -c 'cd "$1" && go build -trimpath -ldflags "-s -w" -o "$2.tmp" ./cmd/ui' _ "${REPO_DIR}" "${BUILD_OUT}" ||
 	die "go build failed"
 install -m 0755 "${BUILD_OUT}.tmp" /usr/local/bin/raspicam-ui
-info "installed /usr/local/bin/raspicam-ui ($(git -C "${REPO_DIR}" describe --always --dirty 2>/dev/null || echo unknown))"
+# Run git as the user too: as root, git refuses a user-owned repo
+# ("dubious ownership").
+rev="$(sudo -u "${RASPICAM_USER}" git -C "${REPO_DIR}" describe --always --dirty 2>/dev/null || echo unknown)"
+info "installed /usr/local/bin/raspicam-ui (${rev})"
 
 # ---------------------------------------------------------------------------
 # Permissions for metrics.
 # ---------------------------------------------------------------------------
-if getent group video >/dev/null && ! id -nG "${RASPICAM_USER}" | tr ' ' '\n' | grep -qx video; then
+if getent group video >/dev/null && [[ " $(id -nG "${RASPICAM_USER}") " != *" video "* ]]; then
 	log "Adding ${RASPICAM_USER} to the video group (needed by vcgencmd)"
 	usermod -aG video "${RASPICAM_USER}"
 fi
