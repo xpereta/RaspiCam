@@ -407,10 +407,11 @@ if [[ "${mtx_binary_changed}" -eq 1 ]]; then
 	info "MediaMTX binary was updated"
 fi
 
-# Give MediaMTX a moment, then check the API and the UI.
+# Give MediaMTX a moment, then check the API and the UI. Quiet curl: early
+# "connection refused" failures are expected while the services start.
 api_ok=0
 for _ in $(seq 1 15); do
-	if curl -fsS -o /dev/null "http://127.0.0.1:9997/v3/paths/list"; then
+	if curl -fs -o /dev/null "http://127.0.0.1:9997/v3/paths/list"; then
 		api_ok=1
 		break
 	fi
@@ -419,7 +420,7 @@ done
 ui_port="${UI_ADDR##*:}"
 ui_ok=0
 for _ in $(seq 1 10); do
-	if curl -fsS -o /dev/null "http://127.0.0.1:${ui_port}/"; then
+	if curl -fs -o /dev/null "http://127.0.0.1:${ui_port}/"; then
 		ui_ok=1
 		break
 	fi
