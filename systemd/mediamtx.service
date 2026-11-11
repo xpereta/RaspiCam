@@ -5,9 +5,11 @@ After=network-online.target
 
 [Service]
 Type=simple
-# MediaMTX runs as root, as in the upstream start-on-boot guide, so it can
-# open the camera devices. The config lives in its own directory so the UI
-# (running as an unprivileged user) can replace it atomically.
+# Based on the upstream start-on-boot guide (docs/2-features/16-start-on-boot.md),
+# which keeps the config in /usr/local/etc/mediamtx/ and runs as root. The
+# config path is also passed explicitly so it never falls back to another
+# default location.
+WorkingDirectory=/usr/local/etc/mediamtx
 ExecStart=/usr/local/bin/mediamtx /usr/local/etc/mediamtx/mediamtx.yml
 Restart=on-failure
 RestartSec=2
