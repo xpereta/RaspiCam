@@ -103,10 +103,21 @@ EOF
     User=pi
     Group=pi
     ```
-  - Ensure network is ready before start:
+  - Ensure network is ready before start. Raspberry Pi OS manages the network
+    with NetworkManager, so its wait-online service is the one that matters
+    (it is enabled by default; this makes sure):
     ```
-    sudo systemctl enable systemd-networkd-wait-online.service
+    sudo systemctl enable NetworkManager-wait-online.service
     ```
+    Do not enable `systemd-networkd-wait-online.service`. It waits for
+    interfaces managed by `systemd-networkd`, which manages none on
+    Raspberry Pi OS, so it always times out and delays `network-online.target`
+    (and this service) by about 2 minutes on every boot. If it was enabled
+    earlier, disable it:
+    ```
+    sudo systemctl disable systemd-networkd-wait-online.service
+    ```
+    Check with `systemd-analyze blame | head` after a reboot.
   - Enable and start:
     ```
     sudo systemctl daemon-reload
