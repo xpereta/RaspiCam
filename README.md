@@ -37,6 +37,15 @@ sudo mv raspicam-ui /usr/local/bin/
 - Camera config changes edit `mediamtx.yml`. MediaMTX auto-restarts on file changes.
 - The UI shows the last update time using the file modification time of `mediamtx.yml`.
 
+## Battery Power (Planned)
+Battery monitoring with a MAX17048 fuel gauge is planned; see
+`PRD_BATTERY_MONITOR.md`.
+
+Power tip: the 18650 UPS charge/boost module draws about 25mA on its own.
+Desoldering its output indicator LED saves more than 10mA (seller spec). That
+is about 2% while streaming (roughly 10-15 extra minutes per charge), and a
+larger share when the Pi is idle or halted after a low-battery shutdown.
+
 ## UI Endpoints
 - `GET /` status UI
 - `POST /camera-config` update camera flip settings; cross-origin requests are rejected with `403 Forbidden` (Sec-Fetch-Site/Origin check)
