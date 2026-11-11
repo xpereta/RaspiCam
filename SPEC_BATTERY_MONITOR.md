@@ -232,6 +232,9 @@ func (m *Monitor) Status() Status             // RWMutex-protected copy
 - `Run` reads once immediately, then on a single `time.Ticker`.
 - After 3 consecutive read errors the state becomes `ReadError` (UI shows
   the error); a successful read restores `StateOK`.
+- Read errors are logged at the first failure of a streak, again when the
+  state becomes `ReadError`, and once on recovery, not on every poll (low SD
+  writes while the gauge is unplugged; visible during calibration).
 - `Status()` reports `StateStale` when the monitor is running and the last
   completed poll (success or error) is older than 3 poll intervals, for
   example because a read never returned. The check uses the monitor's
@@ -302,8 +305,10 @@ func (s *Shutdown) Pending() bool
 1. Guard (real mode, mutex-protected state, not `sync.Once`): while a
    shutdown is in progress, other calls return `ErrShutdownInProgress`. If
    `power.PowerOff` fails, the guard is released so the call can be retried
-   (by the monitor's next tick or another button press). Dry run allows
-   repeated events but logs each.
+   (by the monitor's next tick or another button press). The monitor also
+   keeps retrying on each tick after `ErrShutdownInProgress`, since a
+   concurrent (manual) attempt may still fail; rejected calls are silent.
+   Dry run allows repeated events but logs each.
 2. `log.Printf` with reason, threshold, voltage, SOC, client, dry run.
 3. Append the event to the shutdown log (fsync before continuing). On a
    retry after a failed power-off, the event is not appended again.
@@ -383,7 +388,7 @@ shown in the status page warnings).
 | Variable | Default | Valid |
 |---|---|---|
 | `BATTERY_ENABLED` | `true` | bool |
-| `BATTERY_I2C_DEVICE` | `/dev/i2c-1` | non-empty path |
+| `BATTERY_I2C_DEVICE` | `/dev/i2c-1` | absolute path |
 | `BATTERY_I2C_ADDR` | `0x36` | 0x03-0x77 |
 | `BATTERY_POLL_INTERVAL` | `30s` | 10s-10m |
 | `BATTERY_LOW_SOC` | `20` | 1-90 |
@@ -392,7 +397,7 @@ shown in the status page warnings).
 | `BATTERY_SHUTDOWN_SAMPLES` | `3` | 1-20 |
 | `BATTERY_GRACE_PERIOD` | `2m` | 0-30m |
 | `BATTERY_SHUTDOWN_DRY_RUN` | `false` | bool |
-| `STATE_DIR` | `$STATE_DIRECTORY` or `/var/lib/raspicam` | path |
+| `STATE_DIR` | `$STATE_DIRECTORY` (first entry) or `/var/lib/raspicam` | absolute path |
 | `BATTERY_HISTORY_ENABLED` | `true` | bool (phase 2) |
 | `BATTERY_HISTORY_SAMPLE_INTERVAL` | `60s` | 30s-10m, multiple of poll interval |
 | `BATTERY_HISTORY_FLUSH_INTERVAL` | `15m` | 1m-1h |
@@ -629,7 +634,7 @@ All tests run without hardware (`go test ./...` on macOS and Linux).
 | Trend | dead band, 2-sample switch, noise around the band |
 | Policy | grace period by uptime (incl. UI restart after grace), charging suppression and latch clear, N consecutive, reset on recovery, read errors and implausible readings reset the count (`low, error, low, error, low` does not trigger), latch kept across errors, volts-only and SOC-only triggers |
 | Monitor | fake gauge, injected `tick <-chan time.Time`, clock and uptime func, read-error state transitions, slow read (> 500ms) counted as error, `Stale` after 3 intervals with a blocked fake gauge, power-off failure retried on next tick, no retry after success |
-| Shutdown | ordering (log, then finalize, then flush, then power), dry run flushes but never finalizes or calls power, second call rejected while in progress, guard released and no duplicate log entry after power-off failure |
+| Shutdown | ordering (log, then finalize, then flush, then power), dry run flushes but never finalizes or calls power, second call rejected while in progress (monitor retries until the guard is released), guard released and no duplicate log entry after power-off failure |
 | Shutdown log | append keeps last 10, corrupt lines skipped, atomic rewrite, newest first |
 | Config | defaults, each invalid value replaced with warning, `SHUTDOWN_SOC < LOW_SOC`, poll interval < 10s rejected |
 | Power | `busctl` output parsing (`s "yes"`, `s "no"`, `s "challenge"`, garbage) |
