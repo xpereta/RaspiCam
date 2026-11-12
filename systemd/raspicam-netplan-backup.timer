@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the netplan WiFi config after boot and hourly
+
+[Timer]
+# NetworkManager rewrites /etc/netplan in the first ~30 s after it starts;
+# back up after that has settled, then hourly to pick up WiFi changes.
+OnBootSec=3min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

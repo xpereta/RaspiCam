@@ -371,6 +371,21 @@ Environment=MEDIAMTX_PATH_NAME=${MEDIAMTX_PATH_NAME}
 Environment=MEDIAMTX_CONFIG_PATH=${MEDIAMTX_CONF}
 EOF
 
+# WiFi config guard. NetworkManager rewrites /etc/netplan/*.yaml on every
+# start without fsync; a hard reset right after can leave them empty and the
+# Pi then never rejoins WiFi. Back them up, and restore empty ones at boot
+# before NetworkManager starts. See scripts/netplan-guard.sh.
+if [[ -d /etc/netplan ]]; then
+	install -m 0755 "${REPO_DIR}/scripts/netplan-guard.sh" /usr/local/sbin/raspicam-netplan-guard
+	for unit in raspicam-netplan-guard.service raspicam-netplan-backup.service raspicam-netplan-backup.timer; do
+		install -m 0644 "${REPO_DIR}/systemd/${unit}" "/etc/systemd/system/${unit}"
+	done
+	systemctl daemon-reload
+	systemctl enable raspicam-netplan-guard.service raspicam-netplan-backup.timer >/dev/null 2>&1
+	systemctl start raspicam-netplan-backup.timer
+	/usr/local/sbin/raspicam-netplan-guard backup | sed 's/^/    /'
+fi
+
 # Boot ordering: Raspberry Pi OS uses NetworkManager. systemd-networkd's
 # wait-online manages nothing here and delays boot by ~2 minutes.
 if systemctl list-unit-files NetworkManager-wait-online.service >/dev/null 2>&1; then
