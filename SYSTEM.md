@@ -58,6 +58,9 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Raspberry Pi Zero 2 W resources are limited (CPU, RAM).
 - 32-bit OS; prefer lightweight runtimes (Go or Python with minimal deps).
 - Networking may be unreliable; UI should degrade gracefully.
+- Streaming (camera + H.264 encoder + WiFi transmit) is the peak power
+  load; an undersized supply or cable causes hard resets without log
+  entries, and the Zero 2 W cannot report under-voltage.
 
 ## Security Posture (Initial)
 - Local network access only; no authentication initially.
@@ -74,6 +77,12 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
   `RPI_SETUP.md` for the from-scratch guide. The script places the MediaMTX
   config at `/usr/local/etc/mediamtx/mediamtx.yml` and sets
   `MEDIAMTX_CONFIG_PATH` accordingly via a systemd drop-in.
+- The script also installs a WiFi config guard (`scripts/netplan-guard.sh`,
+  `raspicam-netplan-guard.service`, `raspicam-netplan-backup.timer`).
+  NetworkManager rewrites `/etc/netplan/*.yaml` on every start without
+  fsync; a hard reset (typically from a weak power supply while streaming)
+  can leave them empty and the Pi then never rejoins WiFi. The guard backs
+  the files up and restores empty ones at boot before NetworkManager starts.
 - Follow the same start-on-boot pattern as MediaMTX:
   - Build the UI binary on the Pi:
     ```

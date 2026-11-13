@@ -36,7 +36,15 @@ Sources for every step are listed in section 12.
 - microSD card. Raspberry Pi recommends at least 8 GB for Raspberry Pi OS
   Lite.
 - 5.1 V micro-USB power supply. Raspberry Pi's recommended supply current
-  for the Zero 2 W is 2 A; the camera adds about 200-250 mA.
+  for the Zero 2 W is 2 A; the camera adds about 200-250 mA. **The supply
+  and cable matter more than the label suggests**: streaming (camera, H.264
+  encoder and WiFi transmit at the same time) is the heaviest load, and a
+  weak supply or thin cable makes the Pi hard-reset with nothing in the
+  logs, often within seconds of a viewer connecting. Each load on its own may
+  work fine. The Zero 2 W cannot report under-voltage, so
+  `vcgencmd get_throttled` stays `0x0` even then. Use a good supply with a
+  short, thick cable (the official Raspberry Pi supply is a safe choice) in
+  the port marked PWR.
 - A computer with a microSD card reader (macOS, Windows or Linux).
 - A 2.4 GHz WiFi network.
 
@@ -362,6 +370,29 @@ sudo systemctl enable NetworkManager-wait-online.service
 sudo systemctl disable systemd-networkd-wait-online.service   # if enabled
 ```
 
+WiFi config guard: on Trixie, NetworkManager stores its connections as
+netplan YAML (`/etc/netplan/90-NM-*.yaml`) and rewrites those files every
+time it starts, without flushing them to the card. A hard reset shortly
+after (see the power note in section 1) can leave them empty; NetworkManager
+then has no WiFi profile and the Pi never rejoins the network, even after a
+power-cycle. The guard keeps a backup and restores empty files at boot,
+before NetworkManager starts:
+
+```
+sudo install -m 0755 scripts/netplan-guard.sh /usr/local/sbin/raspicam-netplan-guard
+sudo install -m 0644 systemd/raspicam-netplan-guard.service \
+  systemd/raspicam-netplan-backup.service systemd/raspicam-netplan-backup.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable raspicam-netplan-guard.service
+sudo systemctl enable --now raspicam-netplan-backup.timer
+sudo raspicam-netplan-guard backup
+```
+
+The backup runs 3 minutes after boot and then hourly. It never backs up an
+empty file, and the restore only replaces files that are empty, so a
+connection you delete stays deleted.
+
 Enable and start:
 
 ```
@@ -418,6 +449,20 @@ delays with `systemd-analyze blame | head`.
   enabled; disable it (section 8.6).
 - **Undervoltage / throttling in the UI**: use a supply that meets the
   recommended rating (section 1); try a different one.
+- **Pi reboots by itself or drops off the network while streaming**: almost
+  always power (section 1). Typical signs: it runs fine with the camera off,
+  and `journalctl --list-boots` shows boots that end abruptly a few seconds
+  or minutes after MediaMTX starts, with no error. To confirm, stop
+  MediaMTX and test the parts on their own: `rpicam-vid -t 30000
+  --nopreview -o /dev/null` (camera and encoder) usually survives, while
+  streaming over WiFi resets it. Use a better supply and cable, and reseat
+  the camera ribbon with the power off. Lowering the resolution or bitrate
+  only delays the reset.
+- **Pi never rejoins WiFi after a crash or power loss, even after
+  power-cycles**: the netplan files in `/etc/netplan/` were left empty (see
+  the guard in section 8.6). With the guard installed this is repaired at
+  boot automatically. Without it, reflash the card, or restore the files
+  from another machine that can write ext4.
 
 ## 11. Files Installed
 
@@ -432,6 +477,10 @@ delays with `systemd-analyze blame | head`.
 | `/etc/systemd/system/mediamtx.service` | MediaMTX unit (from `systemd/`) |
 | `/etc/systemd/system/raspicam-ui.service` | UI unit (from `systemd/`) |
 | `/etc/systemd/system/raspicam-ui.service.d/override.conf` | UI user and env |
+| `/usr/local/sbin/raspicam-netplan-guard` | WiFi config guard (from `scripts/netplan-guard.sh`) |
+| `/etc/systemd/system/raspicam-netplan-guard.service` | restores empty netplan files at boot |
+| `/etc/systemd/system/raspicam-netplan-backup.{service,timer}` | backs them up after boot and hourly |
+| `/var/lib/raspicam/netplan-backup/` | the backups (root only) |
 
 ## 12. Sources
 
