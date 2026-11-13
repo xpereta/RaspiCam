@@ -1,0 +1,18 @@
+[Unit]
+Description=MediaMTX streaming server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Based on the upstream start-on-boot guide (docs/2-features/16-start-on-boot.md),
+# which keeps the config in /usr/local/etc/mediamtx/ and runs as root. The
+# config path is also passed explicitly so it never falls back to another
+# default location.
+WorkingDirectory=/usr/local/etc/mediamtx
+ExecStart=/usr/local/bin/mediamtx /usr/local/etc/mediamtx/mediamtx.yml
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

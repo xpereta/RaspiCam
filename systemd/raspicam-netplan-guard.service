@@ -1,0 +1,18 @@
+[Unit]
+Description=Restore empty netplan WiFi config before NetworkManager starts
+Documentation=file:///usr/local/sbin/raspicam-netplan-guard
+# A hard reset right after NetworkManager rewrites /etc/netplan can leave the
+# YAML files empty, and the Pi then never rejoins WiFi. See scripts/netplan-guard.sh.
+DefaultDependencies=no
+After=local-fs.target
+Before=NetworkManager.service network-pre.target shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+ConditionPathIsDirectory=/etc/netplan
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspicam-netplan-guard restore
+
+[Install]
+WantedBy=NetworkManager.service
