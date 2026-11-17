@@ -223,3 +223,63 @@ func TestLoadCameraConfigInvalidValues(t *testing.T) {
 		t.Fatalf("expected error for invalid values")
 	}
 }
+
+func TestCameraConfigFlickerPeriod(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mediamtx.yml")
+	input := `paths:
+  cam:
+    source: rpiCamera
+    rpiCameraFlickerPeriod: 8333
+`
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.FlickerPeriodSet || cfg.FlickerPeriod != 8333 {
+		t.Fatalf("expected flicker period 8333, got %d (set=%v)", cfg.FlickerPeriod, cfg.FlickerPeriodSet)
+	}
+
+	// Not set: the key is left untouched.
+	cfg.FlickerPeriodSet = false
+	cfg.FlickerPeriod = 0
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save without flicker: %v", err)
+	}
+	if got := readFlicker(t, path); got != 8333 {
+		t.Fatalf("expected flicker period preserved, got %d", got)
+	}
+
+	cfg.FlickerPeriodSet = true
+	cfg.FlickerPeriod = 10000
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save with flicker: %v", err)
+	}
+	if got := readFlicker(t, path); got != 10000 {
+		t.Fatalf("expected flicker period 10000, got %d", got)
+	}
+
+	cfg.FlickerPeriod = 0
+	if err := SaveCameraConfig(path, cfg); err != nil {
+		t.Fatalf("save flicker off: %v", err)
+	}
+	out, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	if strings.Contains(string(out), "rpiCameraFlickerPeriod:") {
+		t.Fatalf("expected flicker period key removed")
+	}
+}
+
+func readFlicker(t *testing.T, path string) int {
+	t.Helper()
+	cfg, err := LoadCameraConfig(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	return cfg.FlickerPeriod
+}

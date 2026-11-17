@@ -82,9 +82,12 @@ type CameraView struct {
 	Mode         string
 	AfMode       string
 	LensPosition string
-	LastUpdated  string
-	Message      string
-	MessageClass string
+	// FlickerPeriod is the flicker correction period in microseconds as a
+	// form value; empty means off.
+	FlickerPeriod string
+	LastUpdated   string
+	Message       string
+	MessageClass  string
 }
 
 func NewServer() (*Server, error) {
@@ -184,6 +187,16 @@ func (s *Server) handleCameraUpdate(w http.ResponseWriter, r *http.Request) {
 			}
 			cfg.LensPosition = &value
 		}
+	}
+
+	if _, ok := r.Form["rpiCameraFlickerPeriod"]; ok {
+		period, ok := parseFlickerPeriod(strings.TrimSpace(r.FormValue("rpiCameraFlickerPeriod")))
+		if !ok {
+			http.Redirect(w, r, "/?camera=invalid-flicker-period", http.StatusSeeOther)
+			return
+		}
+		cfg.FlickerPeriod = period
+		cfg.FlickerPeriodSet = true
 	}
 
 	if err := config.SaveCameraConfig(s.configPath, cfg); err != nil {
@@ -369,16 +382,17 @@ func formatCamera(cfg config.CameraConfig, updated time.Time, ok bool, message, 
 		lastUpdated = updated.Format("2006-01-02 15:04:05")
 	}
 	return CameraView{
-		VFlip:        cfg.VFlip,
-		HFlip:        cfg.HFlip,
-		Resolution:   resolutionLabel(cfg.Width, cfg.Height),
-		AWB:          cfg.AWB,
-		Mode:         cfg.Mode,
-		AfMode:       cfg.AfMode,
-		LensPosition: formatLensPosition(cfg.LensPosition),
-		LastUpdated:  lastUpdated,
-		Message:      message,
-		MessageClass: messageClass,
+		VFlip:         cfg.VFlip,
+		HFlip:         cfg.HFlip,
+		Resolution:    resolutionLabel(cfg.Width, cfg.Height),
+		AWB:           cfg.AWB,
+		Mode:          cfg.Mode,
+		AfMode:        cfg.AfMode,
+		LensPosition:  formatLensPosition(cfg.LensPosition),
+		FlickerPeriod: formatFlickerPeriod(cfg.FlickerPeriod),
+		LastUpdated:   lastUpdated,
+		Message:       message,
+		MessageClass:  messageClass,
 	}
 }
 
@@ -473,9 +487,37 @@ func cameraMessageFromStatus(status string) (string, string) {
 		return "Invalid focus mode selection.", "notice err"
 	case "invalid-lens-position":
 		return "Invalid lens position selection.", "notice err"
+	case "invalid-flicker-period":
+		return "Invalid flicker correction selection.", "notice err"
 	default:
 		return "", ""
 	}
+}
+
+// maxFlickerPeriod bounds the accepted flicker period (1 s) so that typos
+// cannot push absurd values into the MediaMTX config.
+const maxFlickerPeriod = 1000000
+
+// parseFlickerPeriod parses a flicker correction period in microseconds.
+// An empty value or "0" means off. The UI offers presets for 50 Hz (10000)
+// and 60 Hz (8333) mains; other values in range are kept so that a period
+// set by hand in mediamtx.yml survives a save.
+func parseFlickerPeriod(value string) (int, bool) {
+	if value == "" {
+		return 0, true
+	}
+	period, err := strconv.Atoi(value)
+	if err != nil || period < 0 || period > maxFlickerPeriod {
+		return 0, false
+	}
+	return period, true
+}
+
+func formatFlickerPeriod(period int) string {
+	if period <= 0 {
+		return ""
+	}
+	return strconv.Itoa(period)
 }
 
 func formatLensPosition(position *float64) string {

@@ -22,6 +22,10 @@ type CameraConfig struct {
 	AfMode          string
 	LensPosition    *float64
 	LensPositionSet bool
+	// FlickerPeriod is the manual flicker correction period in
+	// microseconds; 0 means flicker correction is off.
+	FlickerPeriod    int
+	FlickerPeriodSet bool
 }
 
 func LoadCameraConfig(path string) (CameraConfig, error) {
@@ -82,6 +86,12 @@ func LoadCameraConfig(path string) (CameraConfig, error) {
 		config.LensPosition = &v
 		config.LensPositionSet = true
 	}
+	if v, ok, err := getInt(pathNode, "rpiCameraFlickerPeriod"); err != nil {
+		return CameraConfig{}, err
+	} else if ok {
+		config.FlickerPeriod = v
+		config.FlickerPeriodSet = true
+	}
 
 	return config, nil
 }
@@ -128,6 +138,13 @@ func SaveCameraConfig(path string, config CameraConfig) error {
 			deleteKey(pathNode, "rpiCameraLensPosition")
 		} else {
 			setFloat(pathNode, "rpiCameraLensPosition", *config.LensPosition)
+		}
+	}
+	if config.FlickerPeriodSet {
+		if config.FlickerPeriod > 0 {
+			setInt(pathNode, "rpiCameraFlickerPeriod", config.FlickerPeriod)
+		} else {
+			deleteKey(pathNode, "rpiCameraFlickerPeriod")
 		}
 	}
 

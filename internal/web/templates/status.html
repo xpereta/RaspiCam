@@ -185,6 +185,15 @@
               <option value="cloudy" {{ if eq .Camera.AWB "cloudy" }}selected{{ end }}>Cloudy</option>
               <option value="custom" {{ if eq .Camera.AWB "custom" }}selected{{ end }}>Custom</option>
             </select>
+            <div class="label">Flicker correction</div>
+            <select name="rpiCameraFlickerPeriod">
+              <option value="" {{ if eq .Camera.FlickerPeriod "" }}selected{{ end }}>Off</option>
+              <option value="10000" {{ if eq .Camera.FlickerPeriod "10000" }}selected{{ end }}>50 Hz mains (10000 &micro;s)</option>
+              <option value="8333" {{ if eq .Camera.FlickerPeriod "8333" }}selected{{ end }}>60 Hz mains (8333 &micro;s)</option>
+              {{ if and (ne .Camera.FlickerPeriod "") (ne .Camera.FlickerPeriod "10000") (ne .Camera.FlickerPeriod "8333") }}
+              <option value="{{ .Camera.FlickerPeriod }}" selected>Custom ({{ .Camera.FlickerPeriod }} &micro;s)</option>
+              {{ end }}
+            </select>
             <div class="label">Last updated</div>
             <div class="value">{{ .Camera.LastUpdated }}</div>
             <div>
