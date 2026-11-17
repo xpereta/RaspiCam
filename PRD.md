@@ -67,8 +67,15 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
 - Enable recording:
   ```
   record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z
+  recordDeleteAfter: 0s
+  rpiCameraBitrate: 2500000
   ```
   Recordings stored at `/recordings/cam`.
+- Recording retention is limited by free space, not age: recordings are
+  kept until free space on the card drops below a margin (default 15 GiB),
+  then the oldest segments are deleted first (`scripts/prune-recordings.sh`).
+  At 2.5 Mbps (~27 GB/day) a 128 GB card holds about 3.7 days.
 - Stream access (same network as the Pi):
   - `http://zero2:8889/cam/`
 
@@ -147,7 +154,8 @@ Notes:
 ## Out of Scope
 - Cloud-based management.
 - Multi-user accounts or authentication (initial version).
-- Persistent recording or storage.
+- Off-device recording storage (NAS, cloud) and recording management in
+  the UI.
 - High-availability/failover.
 
 ## Risks and Mitigations

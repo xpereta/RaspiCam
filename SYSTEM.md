@@ -22,6 +22,9 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
 - Auto-starts at boot (systemd service).
 - Responsible for exposing the camera stream.
 - Configuration is minimal and tuned for low power and low latency.
+- Records the `cam` path continuously to `/recordings/cam/` (fMP4, 1 h
+  segments, 2.5 Mbps). MediaMTX's age-based deletion is off
+  (`recordDeleteAfter: 0s`); recordings are kept until free space runs low.
 
 ### 2) Status and Configuration UI
 - Lightweight local web server running on the Pi.
@@ -83,6 +86,11 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
   fsync; a hard reset (typically from a weak power supply while streaming)
   can leave them empty and the Pi then never rejoins WiFi. The guard backs
   the files up and restores empty ones at boot before NetworkManager starts.
+- The script also installs recordings pruning (`scripts/prune-recordings.sh`,
+  `raspicam-prune-recordings.{service,timer}`). Every 5 minutes it deletes
+  the oldest `.mp4` segments under `/recordings`, one at a time, only while
+  free space is below a margin (default 15 GiB, `--min-free-gb`). It never
+  deletes the segment being written (modified in the last 5 minutes).
 - Follow the same start-on-boot pattern as MediaMTX:
   - Build the UI binary on the Pi:
     ```

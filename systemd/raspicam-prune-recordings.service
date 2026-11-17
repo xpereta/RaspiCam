@@ -1,0 +1,9 @@
+[Unit]
+Description=Delete the oldest recordings when free space is low
+
+[Service]
+Type=oneshot
+# Defaults; scripts/setup-pi.sh writes a drop-in with the chosen values.
+Environment=RECORDINGS_DIR=/recordings
+Environment=MIN_FREE_GB=15
+ExecStart=/usr/local/sbin/raspicam-prune-recordings

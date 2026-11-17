@@ -2,7 +2,8 @@
 # setup-pi.sh - install and configure the RaspiCam stack on Raspberry Pi OS.
 #
 # Installs Go, MediaMTX, builds the RaspiCam UI from this checkout, writes
-# the MediaMTX config and systemd units, and starts both services.
+# the MediaMTX config (camera path, image tuning, recording) and systemd
+# units, and starts the services.
 #
 # Run it on the Pi, from a clone of this repository:
 #   sudo ./scripts/setup-pi.sh
@@ -25,6 +26,8 @@ UI_ADDR="${UI_ADDR:-:8080}"
 MEDIAMTX_PATH_NAME="cam" # the UI edits paths.cam; keep in sync with internal/config
 MEDIAMTX_CONF_DIR="/usr/local/etc/mediamtx"
 MEDIAMTX_CONF="${MEDIAMTX_CONF_DIR}/mediamtx.yml"
+RECORDINGS_DIR="${RECORDINGS_DIR:-/recordings}"
+RECORDINGS_MIN_FREE_GB="${RECORDINGS_MIN_FREE_GB:-15}"
 SKIP_APT=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,11 +44,15 @@ Options:
   --mediamtx-version vX.Y.Z
                            MediaMTX release (default: ${MEDIAMTX_VERSION})
   --ui-addr ADDR           Listen address for the UI (default: ${UI_ADDR})
+  --recordings-dir DIR     Where MediaMTX writes recordings
+                           (default: ${RECORDINGS_DIR})
+  --min-free-gb N          Delete the oldest recordings only when free space
+                           drops below N GiB (default: ${RECORDINGS_MIN_FREE_GB})
   --skip-apt               Do not run apt-get update/install
   -h, --help               Show this help
 
-Environment variables GO_VERSION, MEDIAMTX_VERSION, RASPICAM_USER and UI_ADDR
-are honoured as defaults.
+Environment variables GO_VERSION, MEDIAMTX_VERSION, RASPICAM_USER, UI_ADDR,
+RECORDINGS_DIR and RECORDINGS_MIN_FREE_GB are honoured as defaults.
 EOF
 }
 
@@ -75,6 +82,14 @@ while [[ $# -gt 0 ]]; do
 		UI_ADDR="${2:?--ui-addr needs a value}"
 		shift 2
 		;;
+	--recordings-dir)
+		RECORDINGS_DIR="${2:?--recordings-dir needs a value}"
+		shift 2
+		;;
+	--min-free-gb)
+		RECORDINGS_MIN_FREE_GB="${2:?--min-free-gb needs a value}"
+		shift 2
+		;;
 	--skip-apt)
 		SKIP_APT=1
 		shift
@@ -92,6 +107,9 @@ done
 
 GO_VERSION="${GO_VERSION#go}"
 [[ "${MEDIAMTX_VERSION}" == v* ]] || MEDIAMTX_VERSION="v${MEDIAMTX_VERSION}"
+[[ "${RECORDINGS_DIR}" == /* ]] || die "--recordings-dir must be an absolute path"
+RECORDINGS_DIR="${RECORDINGS_DIR%/}"
+[[ "${RECORDINGS_MIN_FREE_GB}" =~ ^[0-9]+$ ]] || die "--min-free-gb must be a whole number"
 
 # ---------------------------------------------------------------------------
 # Preflight.
@@ -151,6 +169,7 @@ info "Architecture: ${DEB_ARCH} (Go ${GO_ARCH}, MediaMTX ${MTX_ARCH})"
 info "Model:        $(tr -d '\0' </proc/device-tree/model 2>/dev/null || echo unknown)"
 info "Service user: ${RASPICAM_USER}:${RASPICAM_GROUP}"
 info "Repository:   ${REPO_DIR}"
+info "Recordings:   ${RECORDINGS_DIR} (prune below ${RECORDINGS_MIN_FREE_GB} GiB free)"
 
 # Not /tmp: from Debian 13 (Trixie) /tmp is a RAM-backed tmpfs (half of RAM,
 # about 212 MB on a Zero 2 W), too small for the downloads and the Go build.
@@ -279,6 +298,8 @@ if [[ -f "${MEDIAMTX_CONF}" ]]; then
 	# Any indent: the UI re-encodes the file with 4-space indentation.
 	grep -qE "^[[:space:]]+${MEDIAMTX_PATH_NAME}:" "${MEDIAMTX_CONF}" ||
 		warn "no paths.${MEDIAMTX_PATH_NAME} entry; the UI camera settings will not work (see RPI_SETUP.md 8.4)"
+	grep -qE '^[[:space:]]+record: (true|yes)$' "${MEDIAMTX_CONF}" ||
+		info "recording is not enabled in the existing config (see RPI_SETUP.md 8.4)"
 	if ! "${MTX_BIN}" --validate-conf "${MEDIAMTX_CONF}" >"${TMP_DIR}/validate.log" 2>&1; then
 		sed 's/^/    /' "${TMP_DIR}/validate.log" >&2
 		warn "existing config is not valid for MediaMTX ${MEDIAMTX_VERSION}; compare with mediamtx.yml.dist"
@@ -293,7 +314,9 @@ else
 	grep -q '^paths:$' "${src}" || die "unexpected upstream config: 'paths:' not found"
 
 	# Enable the Control API on localhost only, and replace the `paths`
-	# section (always the last one) with the camera path.
+	# section (always the last one) with the camera path. The image tuning
+	# and recording settings restore the original (pre-script) setup; see
+	# RPI_SETUP.md 8.4 for what each one does.
 	sed -e 's/^api: false$/api: true/' \
 		-e 's/^apiAddress: :9997$/apiAddress: 127.0.0.1:9997/' \
 		-e '/^paths:$/,$d' \
@@ -302,16 +325,37 @@ else
 paths:
   ${MEDIAMTX_PATH_NAME}:
     source: rpiCamera
+    # Image tuning.
+    rpiCameraAfSpeed: fast
+    rpiCameraMetering: matrix
+    rpiCameraSaturation: 1.25
+    rpiCameraContrast: 1.15
+    rpiCameraSharpness: 1.05
+    # 2.5 Mbps is ~27 GB/day; about 3.7 days fit on a 128 GB card.
+    rpiCameraBitrate: 2500000
+    # Recording. No age-based deletion: raspicam-prune-recordings.timer
+    # deletes the oldest segments only when free space runs low.
+    record: true
+    recordPath: ${RECORDINGS_DIR}/%path/%Y-%m-%d_%H-%M-%S-%f_%z
+    recordDeleteAfter: 0s
 EOF
 	if ! "${MTX_BIN}" --validate-conf "${TMP_DIR}/mediamtx.yml" >"${TMP_DIR}/validate.log" 2>&1; then
 		sed 's/^/    /' "${TMP_DIR}/validate.log" >&2
 		die "generated config failed MediaMTX validation"
 	fi
 	install -m 0644 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${TMP_DIR}/mediamtx.yml" "${MEDIAMTX_CONF}"
-	info "written (upstream defaults + api on 127.0.0.1:9997 + paths.${MEDIAMTX_PATH_NAME})"
+	info "written (upstream defaults + api on 127.0.0.1:9997 + paths.${MEDIAMTX_PATH_NAME} with recording)"
 fi
 # Make sure ownership is right on re-runs (e.g. after a user change).
 chown "${RASPICAM_USER}:${RASPICAM_GROUP}" "${MEDIAMTX_CONF}"
+
+# MediaMTX runs as root and writes the segments; the service user owns the
+# directory so it can copy recordings off with rsync.
+install -d -m 0755 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${RECORDINGS_DIR}"
+if grep -qE '^[[:space:]]+recordPath:' "${MEDIAMTX_CONF}" &&
+	! grep -qF "recordPath: ${RECORDINGS_DIR}/" "${MEDIAMTX_CONF}"; then
+	warn "recordPath in ${MEDIAMTX_CONF} is not under ${RECORDINGS_DIR}; the prune timer only watches ${RECORDINGS_DIR}"
+fi
 
 # Legacy location from earlier manual setups; MediaMTX would not read it now.
 if [[ -f /usr/local/etc/mediamtx.yml ]]; then
@@ -386,6 +430,26 @@ if [[ -d /etc/netplan ]]; then
 	/usr/local/sbin/raspicam-netplan-guard backup | sed 's/^/    /'
 fi
 
+# Recordings pruning. MediaMTX can only delete recordings by age; this timer
+# deletes the oldest ones only when free space drops below the margin. See
+# scripts/prune-recordings.sh.
+install -m 0755 "${REPO_DIR}/scripts/prune-recordings.sh" /usr/local/sbin/raspicam-prune-recordings
+for unit in raspicam-prune-recordings.service raspicam-prune-recordings.timer; do
+	install -m 0644 "${REPO_DIR}/systemd/${unit}" "/etc/systemd/system/${unit}"
+done
+install -d -m 0755 /etc/systemd/system/raspicam-prune-recordings.service.d
+cat >/etc/systemd/system/raspicam-prune-recordings.service.d/override.conf <<EOF
+# Written by scripts/setup-pi.sh; re-run the script to regenerate.
+[Service]
+Environment=RECORDINGS_DIR=${RECORDINGS_DIR}
+Environment=MIN_FREE_GB=${RECORDINGS_MIN_FREE_GB}
+EOF
+systemctl daemon-reload
+systemctl enable raspicam-prune-recordings.timer >/dev/null 2>&1
+systemctl start raspicam-prune-recordings.timer
+# An earlier manual install put the script in /usr/local/bin.
+rm -f /usr/local/bin/raspicam-prune-recordings
+
 # Boot ordering: Raspberry Pi OS uses NetworkManager. systemd-networkd's
 # wait-online manages nothing here and delays boot by ~2 minutes.
 if systemctl list-unit-files NetworkManager-wait-online.service >/dev/null 2>&1; then
@@ -445,6 +509,7 @@ done
 log "Status"
 info "mediamtx:    $(systemctl is-active mediamtx.service || true)"
 info "raspicam-ui: $(systemctl is-active raspicam-ui.service || true)"
+info "prune timer: $(systemctl is-active raspicam-prune-recordings.timer || true)"
 if [[ "${api_ok}" -eq 1 ]]; then
 	info "MediaMTX API: OK"
 else
@@ -466,5 +531,7 @@ Done.
   HLS:        http://${host}:8888/${MEDIAMTX_PATH_NAME}
   RTSP:       rtsp://${host}:8554/${MEDIAMTX_PATH_NAME}
   Config:     ${MEDIAMTX_CONF}
+  Recordings: ${RECORDINGS_DIR}/${MEDIAMTX_PATH_NAME}/ ($(df -h --output=avail "${RECORDINGS_DIR}" | tail -1 | tr -d ' ') free)
   Logs:       journalctl -u mediamtx -u raspicam-ui -f
+  Pruning:    journalctl -t raspicam-prune
 EOF

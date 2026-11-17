@@ -172,6 +172,8 @@ Options (`sudo ./scripts/setup-pi.sh --help`):
 | `--go-version X.Y.Z` | 1.27.4 | Go toolchain version |
 | `--mediamtx-version vX.Y.Z` | v1.21.3 | MediaMTX release |
 | `--ui-addr ADDR` | `:8080` | UI listen address |
+| `--recordings-dir DIR` | `/recordings` | where MediaMTX writes recordings |
+| `--min-free-gb N` | 15 | delete the oldest recordings only below N GiB free |
 | `--skip-apt` | off | skip `apt-get update`/`install` |
 
 Then reboot once to confirm everything comes back on its own:
@@ -189,7 +191,9 @@ sudo ./scripts/setup-pi.sh
 ```
 
 The script rebuilds and reinstalls the UI from the current checkout and
-restarts the services. It keeps your existing `mediamtx.yml`. To move to a
+restarts the services. It keeps your existing `mediamtx.yml`, so settings
+added to the generated config later (such as recording) are not applied to
+it; the script says so, and section 8.4 lists the keys to add by hand. To move to a
 newer MediaMTX, pass `--mediamtx-version`; the script then refreshes
 `mediamtx.yml.dist` with the new upstream defaults and warns if your config
 no longer passes `mediamtx --validate-conf`, so you can compare the two.
@@ -285,9 +289,46 @@ Edit `/usr/local/etc/mediamtx/mediamtx.yml`:
    paths:
      cam:
        source: rpiCamera
+       # Image tuning.
+       rpiCameraAfSpeed: fast
+       rpiCameraMetering: matrix
+       rpiCameraSaturation: 1.25
+       rpiCameraContrast: 1.15
+       rpiCameraSharpness: 1.05
+       rpiCameraBitrate: 2500000
+       # Recording.
+       record: true
+       recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f_%z
+       recordDeleteAfter: 0s
    ```
    The path must be named `cam`; the UI edits the `rpiCamera*` keys under
-   `paths.cam`.
+   `paths.cam` (flip, resolution, sensor mode, white balance, focus,
+   flicker correction) and keeps every other key as it is.
+
+   - Image tuning: `matrix` metering exposes for the whole frame rather than
+     the centre; the saturation, contrast and sharpness values are mild
+     boosts over the default `1`; `fast` autofocus speed only matters with
+     continuous focus.
+   - Bitrate: the default is 5 Mbps (~54 GB/day). 2.5 Mbps (~27 GB/day) is
+     enough for 1280x720 and fits about 3.7 days of recording on a 128 GB
+     card.
+   - Recording: MediaMTX writes fMP4 segments of `recordSegmentDuration`
+     (default 1 h) under `/recordings/cam/`. Keep `%z` (UTC offset) in
+     `recordPath`: without it MediaMTX warns that segments can be
+     overwritten at daylight saving time changes.
+   - `recordDeleteAfter: 0s` turns off MediaMTX's age-based deletion, so
+     nothing is deleted while there is space. The prune timer (section 8.6)
+     deletes the oldest segments only when free space runs low. MediaMTX's
+     default is `1d`, which deletes recordings after a day even on an empty
+     card.
+   - Flicker: under mains-powered lights, set flicker correction in the UI
+     to the local mains frequency (50 Hz: `10000`, 60 Hz: `8333`).
+
+   Create the recordings directory (MediaMTX runs as root and writes the
+   files; owning the directory lets the UI user copy them off):
+   ```
+   sudo install -d -m 0755 -o pi -g pi /recordings
+   ```
 
 `127.0.0.1` is stricter than the default `:9997`; the default
 `authInternalUsers` already only allows API access from `127.0.0.1` and
@@ -393,6 +434,43 @@ The backup runs 3 minutes after boot and then hourly. It never backs up an
 empty file, and the restore only replaces files that are empty, so a
 connection you delete stays deleted.
 
+Recordings pruning: MediaMTX can only delete recordings by age
+(`recordDeleteAfter`), which is turned off in section 8.4. The prune timer
+keeps recordings for as long as the card has room instead. Every 5 minutes
+it checks free space on `/recordings`; only when it is below the margin
+(15 GiB, about 13 hours at 2.5 Mbps) it deletes the oldest `.mp4` segments,
+one at a time, until free space is back above it. Segments changed in the
+last 5 minutes (the one being written) and non-`.mp4` files are never
+deleted:
+
+```
+sudo install -m 0755 scripts/prune-recordings.sh /usr/local/sbin/raspicam-prune-recordings
+sudo install -m 0644 systemd/raspicam-prune-recordings.service \
+  systemd/raspicam-prune-recordings.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now raspicam-prune-recordings.timer
+```
+
+To change the margin or directory, add a drop-in (the script writes one):
+
+```
+sudo mkdir -p /etc/systemd/system/raspicam-prune-recordings.service.d
+sudo tee /etc/systemd/system/raspicam-prune-recordings.service.d/override.conf > /dev/null << EOF
+[Service]
+Environment=RECORDINGS_DIR=/recordings
+Environment=MIN_FREE_GB=15
+EOF
+sudo systemctl daemon-reload
+```
+
+Check what it would delete without deleting anything, and see what it
+deleted:
+
+```
+sudo DRY_RUN=1 MIN_FREE_GB=1000 raspicam-prune-recordings   # prints the oldest segment
+journalctl -t raspicam-prune
+```
+
 Enable and start:
 
 ```
@@ -405,6 +483,8 @@ sudo systemctl enable --now mediamtx raspicam-ui
 ```
 systemctl status mediamtx raspicam-ui
 curl -s http://127.0.0.1:9997/v3/paths/get/cam      # "ready": true
+ls -l /recordings/cam/                              # a segment that keeps growing
+systemctl list-timers raspicam-prune-recordings.timer
 journalctl -u mediamtx -u raspicam-ui -f
 ```
 
@@ -458,6 +538,17 @@ delays with `systemd-analyze blame | head`.
   streaming over WiFi resets it. Use a better supply and cable, and reseat
   the camera ribbon with the power off. Lowering the resolution or bitrate
   only delays the reset.
+- **No recordings in `/recordings/cam/`**: check `record: true` under
+  `paths.cam` and `journalctl -u mediamtx | grep recorder` ("recording 1
+  track"). The directory must exist; MediaMTX creates `cam/` inside it.
+- **Recording timestamps are wrong after a reboot**: the Pi Zero 2 W has no
+  real-time clock and sets the time from the network. Without internet
+  access, segment names use the wrong date until the time is set.
+- **Card fills up / old recordings disappear**: the prune timer deletes the
+  oldest segments below the free-space margin (`journalctl -t
+  raspicam-prune` lists them). To keep more time, lower `rpiCameraBitrate`
+  or use a larger card. Copy recordings off with `rsync -av --partial
+  pi@raspicam.local:/recordings .`.
 - **Pi never rejoins WiFi after a crash or power loss, even after
   power-cycles**: the netplan files in `/etc/netplan/` were left empty (see
   the guard in section 8.6). With the guard installed this is repaired at
@@ -481,6 +572,10 @@ delays with `systemd-analyze blame | head`.
 | `/etc/systemd/system/raspicam-netplan-guard.service` | restores empty netplan files at boot |
 | `/etc/systemd/system/raspicam-netplan-backup.{service,timer}` | backs them up after boot and hourly |
 | `/var/lib/raspicam/netplan-backup/` | the backups (root only) |
+| `/recordings/cam/` | MediaMTX recordings (fMP4 segments) |
+| `/usr/local/sbin/raspicam-prune-recordings` | deletes oldest recordings when space is low (from `scripts/prune-recordings.sh`) |
+| `/etc/systemd/system/raspicam-prune-recordings.{service,timer}` | runs it every 5 minutes |
+| `/etc/systemd/system/raspicam-prune-recordings.service.d/override.conf` | recordings dir and free-space margin |
 
 ## 12. Sources
 
@@ -509,7 +604,8 @@ Each step was checked against these (versions as of November 2026):
 - MediaMTX v1.21.3 (https://github.com/bluenviron/mediamtx/tree/v1.21.3):
   docs Install, Start on boot, Raspberry Pi Cameras, Configuration (hot
   reload), Control API, Authentication, WebRTC/HLS/RTSP reading, WebRTC
-  specific features; `mediamtx.yml` defaults; `api/openapi.yaml`
+  specific features, Record; `mediamtx.yml` defaults (`record`,
+  `recordPath`, `recordDeleteAfter`, `rpiCameraBitrate`); `api/openapi.yaml`
   (`/v3/paths/get/{name}`, `ready`); `scripts/binaries.mk` (armv6/armv7
   builds); `--version` / `--validate-conf` in `internal/core/core.go`;
   config watcher in `internal/confwatcher`.
