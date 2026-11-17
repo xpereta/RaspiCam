@@ -188,8 +188,8 @@
             <div class="label">Flicker correction</div>
             <select name="rpiCameraFlickerPeriod">
               <option value="" {{ if eq .Camera.FlickerPeriod "" }}selected{{ end }}>Off</option>
-              <option value="10000" {{ if eq .Camera.FlickerPeriod "10000" }}selected{{ end }}>50 Hz mains (10000 &micro;s)</option>
-              <option value="8333" {{ if eq .Camera.FlickerPeriod "8333" }}selected{{ end }}>60 Hz mains (8333 &micro;s)</option>
+              <option value="10000" {{ if eq .Camera.FlickerPeriod "10000" }}selected{{ end }}>50 Hz mains: Europe, Africa, most of Asia, Australia (10000 &micro;s)</option>
+              <option value="8333" {{ if eq .Camera.FlickerPeriod "8333" }}selected{{ end }}>60 Hz mains: North America, Brazil, Korea, Taiwan, western Japan (8333 &micro;s)</option>
               {{ if and (ne .Camera.FlickerPeriod "") (ne .Camera.FlickerPeriod "10000") (ne .Camera.FlickerPeriod "8333") }}
               <option value="{{ .Camera.FlickerPeriod }}" selected>Custom ({{ .Camera.FlickerPeriod }} &micro;s)</option>
               {{ end }}

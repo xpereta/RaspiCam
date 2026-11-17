@@ -52,8 +52,8 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Add a flicker correction selector for `rpiCameraFlickerPeriod` (microseconds) to avoid banding under mains-powered lights.
 - Allowed flicker options:
   - Off (removes `rpiCameraFlickerPeriod` from the `cam` path, so the MediaMTX default `0` applies)
-  - `10000` (50 Hz mains)
-  - `8333` (60 Hz mains)
+  - `10000` (50 Hz mains; label lists example regions: Europe, Africa, most of Asia, Australia)
+  - `8333` (60 Hz mains; label lists example regions: North America, Brazil, Korea, Taiwan, western Japan)
   - If the config holds any other value, show it as a "Custom" option so a save keeps it.
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
