@@ -76,3 +76,36 @@ func TestCameraMessageFromStatus(t *testing.T) {
 		t.Fatalf("expected empty message for unknown status")
 	}
 }
+
+func TestParseFlickerPeriod(t *testing.T) {
+	tests := []struct {
+		in   string
+		want int
+		ok   bool
+	}{
+		{"", 0, true},
+		{"0", 0, true},
+		{"10000", 10000, true},
+		{"8333", 8333, true},
+		{"20000", 20000, true},
+		{"-1", 0, false},
+		{"1000001", 0, false},
+		{"10ms", 0, false},
+		{"83.33", 0, false},
+	}
+	for _, tt := range tests {
+		got, ok := parseFlickerPeriod(tt.in)
+		if ok != tt.ok || got != tt.want {
+			t.Errorf("parseFlickerPeriod(%q) = %d, %v; want %d, %v", tt.in, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+func TestFormatFlickerPeriod(t *testing.T) {
+	if got := formatFlickerPeriod(0); got != "" {
+		t.Errorf("formatFlickerPeriod(0) = %q; want empty", got)
+	}
+	if got := formatFlickerPeriod(10000); got != "10000" {
+		t.Errorf("formatFlickerPeriod(10000) = %q; want 10000", got)
+	}
+}

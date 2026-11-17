@@ -49,6 +49,12 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - When `rpiCameraLensPosition` changes, show a helper line below the field:
   - `Inifinity focus` when value is `0`.
   - `Aprox <value> meters` otherwise, where `<value>` is `1 / rpiCameraLensPosition`.
+- Add a flicker correction selector for `rpiCameraFlickerPeriod` (microseconds) to avoid banding under mains-powered lights.
+- Allowed flicker options:
+  - Off (removes `rpiCameraFlickerPeriod` from the `cam` path, so the MediaMTX default `0` applies)
+  - `10000` (50 Hz mains; label lists example regions: Europe, Africa, most of Asia, Australia)
+  - `8333` (60 Hz mains; label lists example regions: North America, Brazil, Korea, Taiwan, western Japan)
+  - If the config holds any other value, show it as a "Custom" option so a save keeps it.
 - Show current values based on the active MediaMTX configuration.
 - Provide a "Save" action to apply changes.
 - Display success or error feedback after save.
@@ -60,6 +66,7 @@ This feature will focus only on the `cam` path and will not introduce broader pa
 - Write updates to the same config file.
 - Validate config file update before applying.
 - `rpiCameraLensPosition` only accepts numeric values (including `0` for infinity focus).
+- `rpiCameraFlickerPeriod` only accepts integers from `0` to `1000000`; empty or `0` means off. If the form omits the field, the existing value is left untouched.
 - MediaMTX auto-restarts on config file changes; no manual restart required.
 - Control API updates are not persistent across restarts; the file is the source of truth.
 
