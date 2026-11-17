@@ -177,6 +177,9 @@ EOF
 
 ## UI Features
 - Status cards: system metrics, MediaMTX state, device info, network stats.
+- "Open camera feed" link in the header: the MediaMTX WebRTC player at
+  `http://<request host>:8889/<MEDIAMTX_PATH_NAME>/`, in a new tab. The host
+  comes from the request, so it works by hostname, IPv4 or IPv6 address.
 - Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`, set resolution, AWB, sensor mode, focus, and flicker correction (`rpiCameraFlickerPeriod`).
 - Last update time uses `mediamtx.yml` modification time.
 

@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type StatusView struct {
 	GeneratedAt string
 	Hostname    string
 	IPAddress   string
+	CameraFeed  string
 	DeviceModel string
 	CameraModel string
 	OSLabel     string
@@ -123,6 +125,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "status unavailable", http.StatusInternalServerError)
 		return
 	}
+	view.CameraFeed = cameraFeedURL(r.Host, s.mediamtxPath)
 	if err := s.tmpl.Execute(w, view); err != nil {
 		http.Error(w, "template render error", http.StatusInternalServerError)
 	}
@@ -543,6 +546,35 @@ func parseLensPosition(value string) (float64, bool) {
 		return 0, false
 	}
 	return parsed, true
+}
+
+// webRTCPort is the MediaMTX WebRTC listener port (webrtcAddress default).
+const webRTCPort = "8889"
+
+// cameraFeedURL returns the MediaMTX WebRTC player URL for path, on the same
+// host the browser used to reach the UI (requestHost is the request Host
+// header, with or without a port). Using the request host keeps the link
+// working whether the UI was opened by name, IPv4 or IPv6 address.
+func cameraFeedURL(requestHost, path string) string {
+	host := requestHost
+	if h, _, err := net.SplitHostPort(requestHost); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	// An IPv6 zone arrives escaped ("fe80::1%25en0"); url.URL escapes it
+	// again, so unescape first.
+	if unescaped, err := url.PathUnescape(host); err == nil {
+		host = unescaped
+	}
+	if host == "" {
+		host = "localhost"
+	}
+	u := url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(host, webRTCPort),
+		Path:   "/" + path + "/",
+	}
+	return u.String()
 }
 
 func hostnameOrUnknown() string {

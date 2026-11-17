@@ -55,6 +55,7 @@
       .inline-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      a.btn { display: inline-block; text-decoration: none; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
       .notice.ok { background: #e8f3ec; color: var(--ok); border: 1px solid #cfe4d6; }
       .notice.warn { background: #fff4e1; color: var(--warn); border: 1px solid #f0d7a3; }
@@ -70,6 +71,11 @@
       <h1>RaspiCam Status</h1>
       <div class="subtitle">Snapshot at {{ .GeneratedAt }}</div>
       <div class="subtitle">Host {{ .Hostname }} · {{ .IPAddress }}</div>
+      {{ if .CameraFeed }}
+      <div class="subtitle">
+        <a class="btn" href="{{ .CameraFeed }}" target="_blank" rel="noopener">Open camera feed</a>
+      </div>
+      {{ end }}
 
       <div class="rowcard" style="margin-bottom: 16px;">
         <div class="metric">

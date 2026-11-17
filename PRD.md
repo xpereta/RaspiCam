@@ -94,6 +94,9 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   - WiFi SSID, data rate, and link quality.
   - MediaMTX service status.
   - MediaMTX stream state if exposed by Control API.
+  - An "Open camera feed" link to the MediaMTX WebRTC player
+    (`http://<host>:8889/<path>/`, using the host the UI was opened with),
+    opened in a new tab.
 - Provides configuration editing for a limited set of parameters (TBD).
 - Configuration changes (`POST /camera-config`) reject cross-origin requests
   with `403 Forbidden` to prevent cross-site request forgery:
