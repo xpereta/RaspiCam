@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up the netplan WiFi config (see raspicam-netplan-guard.service)
+ConditionPathIsDirectory=/etc/netplan
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspicam-netplan-guard backup

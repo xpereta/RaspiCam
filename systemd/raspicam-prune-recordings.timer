@@ -1,0 +1,12 @@
+[Unit]
+Description=Check recordings free space every 5 minutes
+
+[Timer]
+# At 2.5 Mbps MediaMTX writes about 94 MB in 5 minutes, far less than the
+# free-space margin, so a 5 minute check is frequent enough.
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

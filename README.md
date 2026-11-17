@@ -16,16 +16,16 @@ go run ./cmd/ui
 Open `http://localhost:8080`.
 
 ## Quick Start (Pi)
-1) Build:
+From a blank microSD card: see [RPI_SETUP.md](RPI_SETUP.md). In short, flash
+Raspberry Pi OS Lite, then on the Pi:
 ```
-cd /path/to/RaspiCam
- go build -o raspicam-ui ./cmd/ui
+git clone https://github.com/xpereta/RaspiCam.git ~/RaspiCam
+cd ~/RaspiCam
+sudo ./scripts/setup-pi.sh
 ```
-2) Install:
-```
-sudo mv raspicam-ui /usr/local/bin/
-```
-3) Create systemd unit (see `SYSTEM.md`).
+The script installs Go and MediaMTX, writes the MediaMTX config, builds the
+UI, and installs and starts both systemd services. Re-run it after `git pull`
+to deploy updates.
 
 ## Environment Variables
 - `UI_ADDR` (default `:8080`)
