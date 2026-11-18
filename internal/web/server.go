@@ -34,6 +34,7 @@ type StatusView struct {
 	Hostname    string
 	IPAddress   string
 	CameraFeed  string
+	CameraRTSP  string
 	DeviceModel string
 	CameraModel string
 	OSLabel     string
@@ -126,6 +127,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.CameraFeed = cameraFeedURL(r.Host, s.mediamtxPath)
+	view.CameraRTSP = cameraRTSPURL(r.Host, s.mediamtxPath)
 	if err := s.tmpl.Execute(w, view); err != nil {
 		http.Error(w, "template render error", http.StatusInternalServerError)
 	}
@@ -548,14 +550,39 @@ func parseLensPosition(value string) (float64, bool) {
 	return parsed, true
 }
 
-// webRTCPort is the MediaMTX WebRTC listener port (webrtcAddress default).
-const webRTCPort = "8889"
+// MediaMTX listener ports (webrtcAddress and rtspAddress defaults).
+const (
+	webRTCPort = "8889"
+	rtspPort   = "8554"
+)
 
 // cameraFeedURL returns the MediaMTX WebRTC player URL for path, on the same
 // host the browser used to reach the UI (requestHost is the request Host
 // header, with or without a port). Using the request host keeps the link
 // working whether the UI was opened by name, IPv4 or IPv6 address.
 func cameraFeedURL(requestHost, path string) string {
+	u := url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(requestHostname(requestHost), webRTCPort),
+		Path:   "/" + path + "/",
+	}
+	return u.String()
+}
+
+// cameraRTSPURL returns the MediaMTX RTSP URL for path (for VLC, ffplay),
+// on the same host as cameraFeedURL.
+func cameraRTSPURL(requestHost, path string) string {
+	u := url.URL{
+		Scheme: "rtsp",
+		Host:   net.JoinHostPort(requestHostname(requestHost), rtspPort),
+		Path:   "/" + path,
+	}
+	return u.String()
+}
+
+// requestHostname returns the host part of a request Host header, without
+// port or IPv6 brackets, and "localhost" when it is empty.
+func requestHostname(requestHost string) string {
 	host := requestHost
 	if h, _, err := net.SplitHostPort(requestHost); err == nil {
 		host = h
@@ -569,12 +596,7 @@ func cameraFeedURL(requestHost, path string) string {
 	if host == "" {
 		host = "localhost"
 	}
-	u := url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort(host, webRTCPort),
-		Path:   "/" + path + "/",
-	}
-	return u.String()
+	return host
 }
 
 func hostnameOrUnknown() string {
