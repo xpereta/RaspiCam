@@ -56,6 +56,14 @@
       .btn { background: #2f6f4e; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
       .btn:disabled { opacity: 0.6; cursor: not-allowed; }
       a.btn { display: inline-block; text-decoration: none; }
+      .code { margin: 0; padding: 8px 10px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; background: #f7efe2; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; white-space: pre; }
+      .copyrow { display: flex; gap: 8px; align-items: center; }
+      .copyrow .code { flex: 1; min-width: 0; }
+      .btn.small { padding: 6px 10px; font-size: 13px; }
+      .steps { margin: 6px 0 0; padding-left: 20px; }
+      .steps li { margin: 4px 0; }
+      .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+      .subhead { font-weight: 600; font-size: 14px; margin: 16px 0 6px; }
       .notice { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
       .notice.ok { background: #e8f3ec; color: var(--ok); border: 1px solid #cfe4d6; }
       .notice.warn { background: #fff4e1; color: var(--warn); border: 1px solid #f0d7a3; }
@@ -211,6 +219,49 @@
           {{ end }}
         </div>
       </div>
+
+      {{ if .CameraRTSP }}
+      <div class="card" style="margin-top: 16px;" id="vlc">
+        <div class="section">
+          <div class="section-title">Watch in VLC</div>
+          <div class="label" style="margin-bottom: 6px;">Stream URL (RTSP)</div>
+          <div class="copyrow">
+            <pre class="code" id="rtsp-url">{{ .CameraRTSP }}</pre>
+            <button class="btn small" type="button" data-copy="rtsp-url">Copy</button>
+          </div>
+
+          <div class="subhead">In the VLC app</div>
+          <ol class="steps">
+            <li>Open VLC and choose <strong>Media &gt; Open Network Stream</strong> (Ctrl+N). On macOS: <strong>File &gt; Open Network</strong> (Cmd+N).</li>
+            <li>Paste the stream URL and click <strong>Play</strong>.</li>
+          </ol>
+
+          <div class="subhead">From the command line (Windows)</div>
+          <div class="label" style="margin-bottom: 6px;">Command Prompt (cmd), or Win+R:</div>
+          <div class="copyrow">
+            <pre class="code" id="vlc-cmd">"C:\Program Files\VideoLAN\VLC\vlc.exe" --rtsp-tcp --network-caching=1000 {{ .CameraRTSP }}</pre>
+            <button class="btn small" type="button" data-copy="vlc-cmd">Copy</button>
+          </div>
+          <div class="label" style="margin: 10px 0 6px;">PowerShell:</div>
+          <div class="copyrow">
+            <pre class="code" id="vlc-ps">&amp; "C:\Program Files\VideoLAN\VLC\vlc.exe" --rtsp-tcp --network-caching=1000 {{ .CameraRTSP }}</pre>
+            <button class="btn small" type="button" data-copy="vlc-ps">Copy</button>
+          </div>
+          <p class="hint">
+            <code>--rtsp-tcp</code> carries the video over TCP, so packets lost on WiFi are resent instead of showing as grey or smeared frames.
+            <code>--network-caching=1000</code> buffers 1 second to ride out WiFi drops; lower it for less delay.
+            If VLC is installed somewhere else (32-bit VLC: <code>C:\Program Files (x86)\VideoLAN\VLC\vlc.exe</code>), change the path.
+            If the host name does not resolve, open this page by IP address and copy the command again.
+          </p>
+
+          <div class="subhead">From the command line (macOS)</div>
+          <div class="copyrow">
+            <pre class="code" id="vlc-mac">/Applications/VLC.app/Contents/MacOS/VLC --rtsp-tcp --network-caching=1000 {{ .CameraRTSP }}</pre>
+            <button class="btn small" type="button" data-copy="vlc-mac">Copy</button>
+          </div>
+        </div>
+      </div>
+      {{ end }}
 
       <div class="card" style="margin-top: 16px;">
         <div class="section">
@@ -376,6 +427,60 @@
           lensInfinity.addEventListener("change", updateLensState);
         }
         updateLensState();
+      })();
+
+      // Copy buttons. navigator.clipboard only exists on secure origins
+      // (https or localhost), so fall back to selecting the text and
+      // execCommand("copy") when the UI is opened over plain http.
+      (function () {
+        var buttons = document.querySelectorAll("button[data-copy]");
+        for (var i = 0; i < buttons.length; i++) {
+          buttons[i].addEventListener("click", copyFrom);
+        }
+
+        function copyFrom(event) {
+          var button = event.currentTarget;
+          var source = document.getElementById(button.getAttribute("data-copy"));
+          if (!source) {
+            return;
+          }
+          var text = source.textContent;
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function () {
+              done(button, "Copied");
+            }, function () {
+              fallback(button, source);
+            });
+            return;
+          }
+          fallback(button, source);
+        }
+
+        function fallback(button, source) {
+          var range = document.createRange();
+          range.selectNodeContents(source);
+          var selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          var ok = false;
+          try {
+            ok = document.execCommand("copy");
+          } catch (e) {
+            ok = false;
+          }
+          if (ok) {
+            selection.removeAllRanges();
+          }
+          // On failure the text stays selected for a manual Ctrl+C.
+          done(button, ok ? "Copied" : "Press Ctrl+C");
+        }
+
+        function done(button, label) {
+          button.textContent = label;
+          setTimeout(function () {
+            button.textContent = "Copy";
+          }, 1500);
+        }
       })();
     </script>
   </body>

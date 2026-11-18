@@ -185,6 +185,13 @@ EOF
 - "Open camera feed" link in the header: the MediaMTX WebRTC player at
   `http://<request host>:8889/<MEDIAMTX_PATH_NAME>/`, in a new tab. The host
   comes from the request, so it works by hostname, IPv4 or IPv6 address.
+- "Watch in VLC" card: the RTSP URL (`rtsp://<request host>:8554/<path>`)
+  with steps for the VLC app and ready-to-copy commands that open VLC on
+  the stream (Windows cmd and PowerShell, macOS), using `--rtsp-tcp` (lost
+  WiFi packets are resent, not shown as grey frames) and
+  `--network-caching=1000`. Copy buttons fall back to `execCommand("copy")`
+  because `navigator.clipboard` needs a secure origin and the UI is plain
+  http.
 - Camera configuration: toggle `rpiCameraVFlip` and `rpiCameraHFlip`, set resolution, AWB, sensor mode, focus, and flicker correction (`rpiCameraFlickerPeriod`).
 - Last update time uses `mediamtx.yml` modification time.
 
