@@ -300,6 +300,8 @@ if [[ -f "${MEDIAMTX_CONF}" ]]; then
 		warn "no paths.${MEDIAMTX_PATH_NAME} entry; the UI camera settings will not work (see RPI_SETUP.md 8.4)"
 	grep -qE '^[[:space:]]+record: (true|yes)$' "${MEDIAMTX_CONF}" ||
 		info "recording is not enabled in the existing config (see RPI_SETUP.md 8.4)"
+	grep -qE '^playback: (true|yes)$' "${MEDIAMTX_CONF}" ||
+		info "playback server is not enabled in the existing config (see RPI_SETUP.md 8.4)"
 	if ! "${MTX_BIN}" --validate-conf "${MEDIAMTX_CONF}" >"${TMP_DIR}/validate.log" 2>&1; then
 		sed 's/^/    /' "${TMP_DIR}/validate.log" >&2
 		warn "existing config is not valid for MediaMTX ${MEDIAMTX_VERSION}; compare with mediamtx.yml.dist"
@@ -311,14 +313,17 @@ else
 
 	grep -q '^api: false$' "${src}" || die "unexpected upstream config: 'api: false' not found"
 	grep -q '^apiAddress: :9997$' "${src}" || die "unexpected upstream config: 'apiAddress: :9997' not found"
+	grep -q '^playback: false$' "${src}" || die "unexpected upstream config: 'playback: false' not found"
 	grep -q '^paths:$' "${src}" || die "unexpected upstream config: 'paths:' not found"
 
-	# Enable the Control API on localhost only, and replace the `paths`
-	# section (always the last one) with the camera path. The image tuning
+	# Enable the Control API on localhost only and the playback server (to
+	# list and download recordings), and replace the `paths` section (always
+	# the last one) with the camera path. The image tuning
 	# and recording settings restore the original (pre-script) setup; see
 	# RPI_SETUP.md 8.4 for what each one does.
 	sed -e 's/^api: false$/api: true/' \
 		-e 's/^apiAddress: :9997$/apiAddress: 127.0.0.1:9997/' \
+		-e 's/^playback: false$/playback: true/' \
 		-e '/^paths:$/,$d' \
 		"${src}" >"${TMP_DIR}/mediamtx.yml"
 	cat >>"${TMP_DIR}/mediamtx.yml" <<EOF
@@ -344,7 +349,7 @@ EOF
 		die "generated config failed MediaMTX validation"
 	fi
 	install -m 0644 -o "${RASPICAM_USER}" -g "${RASPICAM_GROUP}" "${TMP_DIR}/mediamtx.yml" "${MEDIAMTX_CONF}"
-	info "written (upstream defaults + api on 127.0.0.1:9997 + paths.${MEDIAMTX_PATH_NAME} with recording)"
+	info "written (upstream defaults + api on 127.0.0.1:9997 + playback + paths.${MEDIAMTX_PATH_NAME} with recording)"
 fi
 # Make sure ownership is right on re-runs (e.g. after a user change).
 chown "${RASPICAM_USER}:${RASPICAM_GROUP}" "${MEDIAMTX_CONF}"
@@ -530,6 +535,7 @@ Done.
   WebRTC:     http://${host}:8889/${MEDIAMTX_PATH_NAME}
   HLS:        http://${host}:8888/${MEDIAMTX_PATH_NAME}
   RTSP:       rtsp://${host}:8554/${MEDIAMTX_PATH_NAME}
+  Playback:   http://${host}:9996/list?path=${MEDIAMTX_PATH_NAME}
   Config:     ${MEDIAMTX_CONF}
   Recordings: ${RECORDINGS_DIR}/${MEDIAMTX_PATH_NAME}/ ($(df -h --output=avail "${RECORDINGS_DIR}" | tail -1 | tr -d ' ') free)
   Logs:       journalctl -u mediamtx -u raspicam-ui -f

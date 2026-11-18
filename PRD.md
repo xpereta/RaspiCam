@@ -76,6 +76,10 @@ A lightweight streaming system for Raspberry Pi Zero 2 W using a Pi Camera Modul
   kept until free space on the card drops below a margin (default 15 GiB),
   then the oldest segments are deleted first (`scripts/prune-recordings.sh`).
   At 2.5 Mbps (~27 GB/day) a 128 GB card holds about 3.7 days.
+- Recordings playback: `playback: yes` enables MediaMTX's playback server.
+  - `http://zero2:9996/list?path=cam` lists recorded spans.
+  - `http://zero2:9996/get?path=cam&start=<RFC3339>&duration=<seconds>`
+    downloads a range as MP4.
 - Stream access (same network as the Pi):
   - `http://zero2:8889/cam/`
 

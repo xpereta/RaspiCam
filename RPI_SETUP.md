@@ -283,6 +283,19 @@ Edit `/usr/local/etc/mediamtx/mediamtx.yml`:
    api: true
    apiAddress: 127.0.0.1:9997
    ```
+   Enable the playback server, which lists recordings and serves any time
+   range of them as one MP4 (port 9996):
+   ```yaml
+   playback: true
+   ```
+   - `http://raspicam.local:9996/list?path=cam` lists the recorded time
+     spans as JSON; each entry has a ready-made `url` to play it.
+   - `http://raspicam.local:9996/get?path=cam&start=2026-11-18T12:40:00%2B01:00&duration=600&format=mp4`
+     returns 10 minutes from 12:40 (`%2B` is `+`; `duration` in seconds),
+     joining segments as needed.
+   - The default `authInternalUsers` grants `playback` to anyone, like
+     `read` for the live stream: anyone on the network can watch the
+     recordings.
 2. Replace everything inside the `paths:` section (the last section of the
    file), as MediaMTX's Raspberry Pi camera guide describes:
    ```yaml
@@ -441,7 +454,9 @@ it checks free space on `/recordings`; only when it is below the margin
 (15 GiB, about 13 hours at 2.5 Mbps) it deletes the oldest `.mp4` segments,
 one at a time, until free space is back above it. Segments changed in the
 last 5 minutes (the one being written) and non-`.mp4` files are never
-deleted:
+deleted. Empty (0-byte) segments, which MediaMTX leaves when the camera
+fails right after a segment starts, are always deleted: one of them makes
+the playback server's `/list` fail with `EOF`:
 
 ```
 sudo install -m 0755 scripts/prune-recordings.sh /usr/local/sbin/raspicam-prune-recordings
@@ -467,7 +482,7 @@ Check what it would delete without deleting anything, and see what it
 deleted:
 
 ```
-sudo DRY_RUN=1 MIN_FREE_GB=1000 raspicam-prune-recordings   # prints the oldest segment
+sudo DRY_RUN=1 MIN_FREE_GB=1000 raspicam-prune-recordings   # prints empty segments and the oldest one
 journalctl -t raspicam-prune
 ```
 
@@ -484,6 +499,7 @@ sudo systemctl enable --now mediamtx raspicam-ui
 systemctl status mediamtx raspicam-ui
 curl -s http://127.0.0.1:9997/v3/paths/get/cam      # "ready": true
 ls -l /recordings/cam/                              # a segment that keeps growing
+curl -s 'http://127.0.0.1:9996/list?path=cam'       # recorded time spans
 systemctl list-timers raspicam-prune-recordings.timer
 journalctl -u mediamtx -u raspicam-ui -f
 ```
