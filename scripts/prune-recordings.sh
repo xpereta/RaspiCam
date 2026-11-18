@@ -11,6 +11,11 @@
 #   - files modified in the last 5 minutes (the segment MediaMTX is writing),
 #   - anything that is not an .mp4 file.
 #
+# Empty (0-byte) segments are always deleted, whatever the free space. MediaMTX
+# leaves one when the camera fails right after it opens a segment (e.g. a
+# brownout reboot), and a single empty segment makes the playback server's
+# /list endpoint fail with "EOF" for every time range that includes it.
+#
 # Environment:
 #   RECORDINGS_DIR  recordings root (default /recordings)
 #   MIN_FREE_GB     free-space margin in GiB (default 15)
@@ -35,6 +40,17 @@ min_kb=$((MIN_FREE_GB * 1024 * 1024))
 avail_kb() { df -Pk "${DIR}" | awk 'NR == 2 { print $4 }'; }
 
 [ -d "${DIR}" ] || exit 0
+
+find "${DIR}" -type f -name '*.mp4' -size 0 -mmin +5 |
+	while IFS= read -r f; do
+		if [ "${DRY_RUN}" = 1 ]; then
+			echo "would delete empty ${f}"
+			continue
+		fi
+		rm -f -- "${f}"
+		logger -t raspicam-prune "deleted empty ${f}"
+	done
+
 [ "$(avail_kb)" -lt "${min_kb}" ] || exit 0
 
 # Oldest first, by modification time. Segment names have no spaces or

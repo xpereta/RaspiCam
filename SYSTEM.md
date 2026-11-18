@@ -90,7 +90,12 @@ Provide a low-power, always-on streaming setup using a Raspberry Pi Zero 2 W wit
   `raspicam-prune-recordings.{service,timer}`). Every 5 minutes it deletes
   the oldest `.mp4` segments under `/recordings`, one at a time, only while
   free space is below a margin (default 15 GiB, `--min-free-gb`). It never
-  deletes the segment being written (modified in the last 5 minutes).
+  deletes the segment being written (modified in the last 5 minutes). Empty
+  segments (left when the camera fails right after a segment starts) are
+  always deleted, since one breaks the playback server's `/list`.
+- The generated MediaMTX config enables the playback server
+  (`playback: true`, port 9996): `/list?path=cam` lists recorded spans and
+  `/get?path=cam&start=...&duration=...` serves any range as one MP4.
 - Follow the same start-on-boot pattern as MediaMTX:
   - Build the UI binary on the Pi:
     ```
